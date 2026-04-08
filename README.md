@@ -127,17 +127,26 @@ This project uses GitHub Actions to run automated tests on push and pull request
 
 ## Screenshots
 
-- Swagger upload flow
+### Upload and processing response
+![Swagger Upload](assets/screenshots/swagger-upload.png)
 
-- Jobs list endpoint
+### Jobs list
+![Jobs List](assets/screenshots/jobs-list.png)
 
-- Download cleaned output
+### Job detail
+![Job Detail](assets/screenshots/job-detail.png)
 
-- Download error report
+### Download cleaned output
+![Download Clean](assets/screenshots/download-clean.png)
 
-- Structured logs
+### Download error report
+![Download Errors](assets/screenshots/download-errors.png)
 
-- GitHub Actions CI
+### Structured logs
+![Structured Logs](assets/screenshots/structured-logs.png)
+
+### GitHub Actions CI
+![GitHub Actions CI](assets/screenshots/github-actions-ci.png)
 
 ## Future Improvements
 1. Support multiple CSV processing profiles
