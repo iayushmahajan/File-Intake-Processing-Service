@@ -58,7 +58,11 @@ The service is organized into a few simple layers:
 
 Swagger UI is available at:
 
-- `http://127.0.0.1:8000/docs`
+- `https://your-app-name.onrender.com/docs`
+
+## Hosted Demo Note
+
+The free hosted version runs on ephemeral storage. Uploaded files and processing history may reset after redeploys or service restarts.
 
 ## CSV Schema
 
