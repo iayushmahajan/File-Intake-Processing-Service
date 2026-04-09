@@ -58,7 +58,7 @@ The service is organized into a few simple layers:
 
 ## Hosted Demo is available at:
 
-- [File-Intake-Processing-Service](https://file-intake-processing-service.onrender.com)
+- [File-Intake-Processing-Service](https://file-intake-processing-service.onrender.com/docs)
 
 ## Hosted Demo Note
 
