@@ -56,9 +56,9 @@ The service is organized into a few simple layers:
 - `GET /api/v1/jobs/{job_id}/download/clean`
 - `GET /api/v1/jobs/{job_id}/download/errors`
 
-Swagger UI is available at:
+## Hosted Demo is available at:
 
-- `https://your-app-name.onrender.com/docs`
+- [File-Intake-Processing-Service](https://your-app-name.onrender.com/docs)
 
 ## Hosted Demo Note
 
