@@ -2,8 +2,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
-
 
 def test_upload_csv_success() -> None:
     file_content = (
@@ -12,10 +10,11 @@ def test_upload_csv_success() -> None:
         b"CUST-002,bob@example.com,IN,2026-04-03,89.99\n"
     )
 
-    response = client.post(
-        "/api/v1/uploads",
-        files={"file": ("sample.csv", file_content, "text/csv")},
-    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/uploads",
+            files={"file": ("sample.csv", file_content, "text/csv")},
+        )
 
     assert response.status_code == 200
     data = response.json()
@@ -32,10 +31,11 @@ def test_upload_csv_success() -> None:
 
 
 def test_upload_csv_reject_non_csv() -> None:
-    response = client.post(
-        "/api/v1/uploads",
-        files={"file": ("sample.txt", b"hello", "text/plain")},
-    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/uploads",
+            files={"file": ("sample.txt", b"hello", "text/plain")},
+        )
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Only CSV files are allowed."}
@@ -49,10 +49,11 @@ def test_upload_csv_with_invalid_rows() -> None:
         b"CUST-003,charlie@example.com,US,2026-04-05,50.00\n"
     )
 
-    response = client.post(
-        "/api/v1/uploads",
-        files={"file": ("invalid_sample.csv", file_content, "text/csv")},
-    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/uploads",
+            files={"file": ("invalid_sample.csv", file_content, "text/csv")},
+        )
 
     assert response.status_code == 200
     data = response.json()
