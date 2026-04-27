@@ -1,0 +1,4 @@
+customer_id,email,country,signup_date,order_amount
+CUST-001,alice@example.com,DE,2026-04-01,125.50
+,wrong-email,ZZ,01-04-2026,-20
+CUST-003,charlie@example.com,US,2026-04-05,50.00

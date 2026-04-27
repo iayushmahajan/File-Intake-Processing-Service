@@ -1,0 +1,2 @@
+customer_id,email,country,signup_date,order_amount
+CUST-101,alice@example.com,DE,2026-04-01,125.50

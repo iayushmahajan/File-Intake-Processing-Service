@@ -1,0 +1,2 @@
+row_number,customer_id,email,country,signup_date,order_amount,errors
+2,,wrong-email,ZZ,01-04-2026,-20,"customer_id is required; email must be a valid email address; country must be one of: DE, FR, GB, IN, US; signup_date must be in YYYY-MM-DD format; order_amount must be non-negative"

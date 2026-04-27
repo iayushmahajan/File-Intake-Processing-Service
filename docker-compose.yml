@@ -1,9 +1,11 @@
 services:
   api:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: file-intake-api
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data
+      - ./backend/data:/app/data
     restart: unless-stopped
