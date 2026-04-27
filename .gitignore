@@ -4,10 +4,8 @@ __pycache__
 *.pyc
 .git
 .gitignore
-data/input/*
-data/output/*
 !data/input/.gitkeep
 !data/output/.gitkeep
 file_processing.db
-backend/data/input/
-backend/data/output/
+backend/data/input/*
+backend/data/output/*
