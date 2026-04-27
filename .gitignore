@@ -9,3 +9,6 @@ __pycache__
 file_processing.db
 backend/data/input/*
 backend/data/output/*
+
+!backend/data/input/.gitkeep
+!backend/data/output/.gitkeep
