@@ -1,4 +1,0 @@
-customer_id,email,country,signup_date,order_amount
-CUST-001,alice@example.com,DE,2026-04-01,125.50
-CUST-002,bob@example.com,IN,2026-04-03,89.99
-CUST-003,charlie@example.com,US,2026-04-05,50.00
