@@ -7,6 +7,7 @@ import { UploadPanel, type UploadResult } from "../panels/UploadPanel";
 export function AppShell() {
     const [latestResult, setLatestResult] = useState<UploadResult | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
 
     return (
         <div className="min-h-screen">
@@ -20,6 +21,7 @@ export function AppShell() {
                             onUploadComplete={(result) => {
                                 setLatestResult(result);
                                 setIsProcessing(false);
+                                setJobsRefreshKey((current) => current + 1);
                             }}
                             onUploadError={() => setIsProcessing(false)}
                         />
@@ -28,7 +30,7 @@ export function AppShell() {
                     </div>
 
                     <div>
-                        <JobsPanel />
+                        <JobsPanel refreshKey={jobsRefreshKey} />
                     </div>
                 </div>
             </div>
