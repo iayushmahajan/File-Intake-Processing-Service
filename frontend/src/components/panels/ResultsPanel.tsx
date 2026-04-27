@@ -3,6 +3,7 @@ import type { UploadResult } from "./UploadPanel";
 
 type ResultsPanelProps = {
     result: UploadResult | null;
+    isLoading?: boolean;
 };
 
 function getPercentage(value: number, total: number) {
@@ -10,7 +11,7 @@ function getPercentage(value: number, total: number) {
     return Math.round((value / total) * 100);
 }
 
-export function ResultsPanel({ result }: ResultsPanelProps) {
+export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
     const summary = result?.processing_summary;
 
     const totalRows = summary?.total_rows ?? 0;
@@ -20,26 +21,48 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
     const validPercentage = getPercentage(validRows, totalRows);
     const invalidPercentage = getPercentage(invalidRows, totalRows);
 
+    const hasResult = Boolean(summary);
+    const isPerfect = hasResult && invalidRows === 0;
+    const hasErrors = hasResult && invalidRows > 0;
+
     return (
         <SectionCard
             title="Processing Summary"
             description="Review row quality and generated output details."
         >
-            <div className="space-y-5">
-                <div className="rounded-xl border border-borderSoft bg-surfaceSoft/50 px-4 py-4">
+            <div
+                className={`space-y-5 transition-all duration-500 ${hasResult ? "opacity-100" : "opacity-90"
+                    }`}
+            >
+                <div
+                    className={`rounded-xl border px-4 py-4 transition-all duration-500 ${isLoading
+                            ? "border-accent/30 bg-accent/10"
+                            : isPerfect
+                                ? "border-green-500/20 bg-green-500/10"
+                                : hasErrors
+                                    ? "border-yellow-500/20 bg-yellow-500/10"
+                                    : "border-borderSoft bg-surfaceSoft/50"
+                        }`}
+                >
                     <p className="text-sm font-medium text-textMain">
-                        {result ? result.message : "No results yet"}
+                        {isLoading
+                            ? "Processing file..."
+                            : result
+                                ? result.message
+                                : "No results yet"}
                     </p>
 
                     <p className="mt-1 text-sm text-textMuted">
-                        {result
-                            ? `Job #${result.job_id} created for ${result.original_filename}.`
-                            : "Once a file is uploaded, this area will show row quality, validation ratio, and generated output details."}
+                        {isLoading
+                            ? "The uploaded CSV is being validated and transformed."
+                            : result
+                                ? `Job #${result.job_id} created for ${result.original_filename}.`
+                                : "Once a file is uploaded, this area will show row quality, validation ratio, and generated output details."}
                     </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Total Rows
                         </p>
@@ -48,7 +71,7 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Valid Rows
                         </p>
@@ -57,7 +80,7 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Invalid Rows
                         </p>
@@ -81,7 +104,10 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
                         </div>
 
                         {summary ? (
-                            <p className="text-sm font-semibold text-success">
+                            <p
+                                className={`text-sm font-semibold ${isPerfect ? "text-success" : "text-textMain"
+                                    }`}
+                            >
                                 {validPercentage}%
                             </p>
                         ) : null}
@@ -91,11 +117,11 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
                         {summary ? (
                             <div className="flex h-full w-full">
                                 <div
-                                    className="h-full bg-success transition-all duration-500"
+                                    className="h-full bg-success transition-all duration-700"
                                     style={{ width: `${validPercentage}%` }}
                                 />
                                 <div
-                                    className="h-full bg-danger transition-all duration-500"
+                                    className="h-full bg-danger transition-all duration-700"
                                     style={{ width: `${invalidPercentage}%` }}
                                 />
                             </div>

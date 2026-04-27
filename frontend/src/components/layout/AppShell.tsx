@@ -6,6 +6,7 @@ import { UploadPanel, type UploadResult } from "../panels/UploadPanel";
 
 export function AppShell() {
     const [latestResult, setLatestResult] = useState<UploadResult | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     return (
         <div className="min-h-screen">
@@ -14,8 +15,16 @@ export function AppShell() {
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
                     <div className="space-y-6">
-                        <UploadPanel onUploadComplete={setLatestResult} />
-                        <ResultsPanel result={latestResult} />
+                        <UploadPanel
+                            onUploadStart={() => setIsProcessing(true)}
+                            onUploadComplete={(result) => {
+                                setLatestResult(result);
+                                setIsProcessing(false);
+                            }}
+                            onUploadError={() => setIsProcessing(false)}
+                        />
+
+                        <ResultsPanel result={latestResult} isLoading={isProcessing} />
                     </div>
 
                     <div>

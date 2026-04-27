@@ -21,7 +21,9 @@ export type UploadResult = {
 };
 
 type UploadPanelProps = {
+    onUploadStart?: () => void;
     onUploadComplete: (result: UploadResult) => void;
+    onUploadError?: () => void;
 };
 
 const API_BASE_URL =
@@ -37,7 +39,11 @@ function isCsvFile(file: File) {
     return file.name.toLowerCase().endsWith(".csv");
 }
 
-export function UploadPanel({ onUploadComplete }: UploadPanelProps) {
+export function UploadPanel({
+    onUploadStart,
+    onUploadComplete,
+    onUploadError,
+}: UploadPanelProps) {
     const inputRef = useRef<HTMLInputElement | null>(null);
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -81,6 +87,7 @@ export function UploadPanel({ onUploadComplete }: UploadPanelProps) {
         try {
             setIsUploading(true);
             setUploadMessage(null);
+            onUploadStart?.();
 
             const response = await fetch(`${API_BASE_URL}/api/v1/uploads`, {
                 method: "POST",
@@ -99,6 +106,7 @@ export function UploadPanel({ onUploadComplete }: UploadPanelProps) {
             setUploadMessage(
                 error instanceof Error ? error.message : "Something went wrong."
             );
+            onUploadError?.();
         } finally {
             setIsUploading(false);
         }
@@ -161,6 +169,7 @@ export function UploadPanel({ onUploadComplete }: UploadPanelProps) {
                         <p className="mt-1 text-sm text-textMain">
                             {selectedFile ? selectedFile.name : "No file selected yet"}
                         </p>
+
                         {selectedFile ? (
                             <p className="mt-1 text-xs text-textMuted">
                                 {formatFileSize(selectedFile.size)}
@@ -177,7 +186,9 @@ export function UploadPanel({ onUploadComplete }: UploadPanelProps) {
                                 }`}
                         >
                             {validationError ??
-                                (selectedFile ? "CSV file ready to upload" : "Waiting for input")}
+                                (selectedFile
+                                    ? "CSV file ready to upload"
+                                    : "Waiting for input")}
                         </p>
                     </div>
                 </div>
