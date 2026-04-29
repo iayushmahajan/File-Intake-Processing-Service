@@ -3,17 +3,25 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_upload_csv_success() -> None:
-    file_content = (
-        b"customer_id,email,country,signup_date,order_amount\n"
-        b"CUST-001,alice@example.com,DE,2026-04-01,125.50\n"
-        b"CUST-002,bob@example.com,IN,2026-04-03,89.99\n"
-    )
+VALID_CSV = (
+    b"customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date\n"
+    b"CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10\n"
+    b"CUST-002,bob@example.com,IN,2026-04-03,89.99,INR,paypal,pending,clothing,1,5,2026-04-09\n"
+)
 
+INVALID_CSV = (
+    b"customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date\n"
+    b"CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10\n"
+    b",wrong-email,ZZ,01-04-2026,-20,BTC,cash,shipped,,0,150,wrong-date\n"
+    b"CUST-003,charlie@example.com,US,2026-04-05,50.00,USD,card,completed,home,1,0,2026-04-12\n"
+)
+
+
+def test_upload_csv_success() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/uploads",
-            files={"file": ("sample.csv", file_content, "text/csv")},
+            files={"file": ("sample.csv", VALID_CSV, "text/csv")},
         )
 
     assert response.status_code == 200
@@ -42,17 +50,10 @@ def test_upload_csv_reject_non_csv() -> None:
 
 
 def test_upload_csv_with_invalid_rows() -> None:
-    file_content = (
-        b"customer_id,email,country,signup_date,order_amount\n"
-        b"CUST-001,alice@example.com,DE,2026-04-01,125.50\n"
-        b",wrong-email,ZZ,01-04-2026,-20\n"
-        b"CUST-003,charlie@example.com,US,2026-04-05,50.00\n"
-    )
-
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/uploads",
-            files={"file": ("invalid_sample.csv", file_content, "text/csv")},
+            files={"file": ("invalid_sample.csv", INVALID_CSV, "text/csv")},
         )
 
     assert response.status_code == 200

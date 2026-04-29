@@ -2,13 +2,19 @@ import csv
 from pathlib import Path
 from typing import Dict, List
 
-
 CLEANED_FIELDNAMES = [
     "customer_id",
     "email",
     "country",
     "signup_date",
     "order_amount",
+    "currency",
+    "payment_method",
+    "order_status",
+    "product_category",
+    "quantity",
+    "discount_percent",
+    "last_login_date",
 ]
 
 ERROR_FIELDNAMES = [
@@ -18,6 +24,13 @@ ERROR_FIELDNAMES = [
     "country",
     "signup_date",
     "order_amount",
+    "currency",
+    "payment_method",
+    "order_status",
+    "product_category",
+    "quantity",
+    "discount_percent",
+    "last_login_date",
     "errors",
 ]
 

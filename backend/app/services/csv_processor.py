@@ -7,9 +7,19 @@ from app.core.config import OUTPUT_DIR
 from app.core.logging import get_logger
 from app.services.report_generator import write_cleaned_csv, write_error_csv
 from app.services.transformer import transform_row
-from app.services.validator import validate_csv_columns, validate_row
+from app.services.validator import (
+    get_error_category,
+    validate_csv_columns,
+    validate_row,
+)
 
 logger = get_logger(__name__)
+
+
+def add_errors_to_breakdown(error_breakdown: Dict[str, int], errors: List[str]) -> None:
+    for error in errors:
+        category = get_error_category(error)
+        error_breakdown[category] = error_breakdown.get(category, 0) + 1
 
 
 def process_csv_file(input_path: Path) -> Dict[str, object]:
@@ -22,12 +32,16 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
 
     valid_rows: List[Dict[str, str]] = []
     error_rows: List[Dict[str, str]] = []
+    error_breakdown: Dict[str, int] = {}
 
     with input_path.open("r", newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
 
         columns_valid, column_errors = validate_csv_columns(reader.fieldnames)
+
         if not columns_valid:
+            add_errors_to_breakdown(error_breakdown, column_errors)
+
             error_filename = f"errors_{uuid4().hex}.csv"
             error_path = OUTPUT_DIR / error_filename
 
@@ -63,12 +77,15 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
                 "error_filename": error_filename,
                 "cleaned_path": "",
                 "error_path": str(error_path),
+                "error_breakdown": error_breakdown,
             }
 
         for row_number, row in enumerate(reader, start=2):
             errors = validate_row(row, row_number)
 
             if errors:
+                add_errors_to_breakdown(error_breakdown, errors)
+
                 error_rows.append(
                     {
                         "row_number": row_number,
@@ -103,6 +120,7 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
             "invalid_rows": len(error_rows),
             "cleaned_file": str(cleaned_path),
             "error_file": str(error_path),
+            "error_breakdown": error_breakdown,
         },
     )
 
@@ -114,4 +132,5 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
         "error_filename": error_filename,
         "cleaned_path": str(cleaned_path),
         "error_path": str(error_path),
+        "error_breakdown": error_breakdown,
     }

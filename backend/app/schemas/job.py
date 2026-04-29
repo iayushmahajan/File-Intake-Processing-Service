@@ -12,6 +12,7 @@ class ProcessingSummaryResponse(BaseModel):
     error_filename: str
     cleaned_path: str
     error_path: str
+    error_breakdown: dict[str, int] = {}
 
 
 class UploadResponse(BaseModel):

@@ -9,6 +9,7 @@ type ProcessingSummary = {
     error_filename: string;
     cleaned_path: string;
     error_path: string;
+    error_breakdown: Record<string, number>;
 };
 
 export type UploadResult = {
@@ -29,6 +30,11 @@ type UploadPanelProps = {
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+const SAMPLE_CSV = `customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date
+CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10
+CUST-002,bob@example.com,IN,2026-04-03,89.99,INR,paypal,pending,clothing,1,5,2026-04-09
+`;
+
 function formatFileSize(size: number) {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
@@ -37,6 +43,18 @@ function formatFileSize(size: number) {
 
 function isCsvFile(file: File) {
     return file.name.toLowerCase().endsWith(".csv");
+}
+
+function downloadSampleCsv() {
+    const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sample_customer_upload.csv";
+    link.click();
+
+    URL.revokeObjectURL(url);
 }
 
 export function UploadPanel({
@@ -120,6 +138,27 @@ export function UploadPanel({
             description="Select a customer CSV file to validate and process."
         >
             <div className="space-y-4">
+                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-textMain">
+                                Expected CSV format
+                            </p>
+                            <p className="mt-1 text-xs text-textMuted">
+                                customer_id, email, country, signup_date, order_amount
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={downloadSampleCsv}
+                            className="rounded-xl border border-borderSoft px-3 py-2 text-sm text-textMain transition hover:border-accent"
+                        >
+                            Download Sample CSV
+                        </button>
+                    </div>
+                </div>
+
                 <div
                     onDragOver={(event) => {
                         event.preventDefault();
@@ -196,8 +235,8 @@ export function UploadPanel({
                 {uploadMessage ? (
                     <div
                         className={`rounded-xl border px-4 py-3 text-sm ${uploadMessage.includes("successfully")
-                                ? "border-green-500/20 bg-green-500/10 text-green-300"
-                                : "border-red-500/20 bg-red-500/10 text-red-300"
+                            ? "border-green-500/20 bg-green-500/10 text-green-300"
+                            : "border-red-500/20 bg-red-500/10 text-red-300"
                             }`}
                     >
                         {uploadMessage}

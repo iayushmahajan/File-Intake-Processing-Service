@@ -6,6 +6,14 @@ type ResultsPanelProps = {
     isLoading?: boolean;
 };
 
+const VALIDATION_RULES = [
+    "customer_id is required",
+    "email must be valid",
+    "country must be one of DE, FR, IN, US, GB",
+    "signup_date must use YYYY-MM-DD",
+    "order_amount must be numeric and non-negative",
+];
+
 function getPercentage(value: number, total: number) {
     if (total === 0) return 0;
     return Math.round((value / total) * 100);
@@ -25,10 +33,12 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
     const isPerfect = hasResult && invalidRows === 0;
     const hasErrors = hasResult && invalidRows > 0;
 
+    const errorBreakdown = Object.entries(summary?.error_breakdown ?? {});
+
     return (
         <SectionCard
             title="Processing Summary"
-            description="Review row quality and generated output details."
+            description="Review row quality, validation rules, and generated output details."
         >
             <div
                 className={`space-y-5 transition-all duration-500 ${hasResult ? "opacity-100" : "opacity-90"
@@ -61,8 +71,23 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                     </p>
                 </div>
 
+                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
+                    <p className="text-sm font-medium text-textMain">Validation Rules</p>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {VALIDATION_RULES.map((rule) => (
+                            <div
+                                key={rule}
+                                className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-2 text-xs text-textMuted"
+                            >
+                                {rule}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Total Rows
                         </p>
@@ -71,7 +96,7 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Valid Rows
                         </p>
@@ -80,7 +105,7 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3 transition-all duration-300">
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
                         <p className="text-xs uppercase tracking-wide text-textMuted">
                             Invalid Rows
                         </p>
@@ -145,6 +170,29 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                     ) : null}
                 </div>
 
+                {hasErrors ? (
+                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
+                        <p className="text-sm font-medium text-textMain">Error Breakdown</p>
+                        <p className="mt-1 text-xs text-textMuted">
+                            Grouped by validation category from the uploaded CSV.
+                        </p>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            {errorBreakdown.map(([category, count]) => (
+                                <div
+                                    key={category}
+                                    className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2"
+                                >
+                                    <span className="text-sm text-textMain">{category}</span>
+                                    <span className="text-sm font-semibold text-danger">
+                                        {count}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
                 {summary ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
@@ -152,7 +200,7 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                                 Clean Output
                             </p>
                             <p className="mt-2 break-all text-sm text-textMain">
-                                {summary.cleaned_filename}
+                                {summary.cleaned_filename || "No clean file generated"}
                             </p>
                         </div>
 
