@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from app.core.config import OUTPUT_DIR
 from app.core.logging import get_logger
+from app.services.analyzer import analyze_processed_data
 from app.services.report_generator import write_cleaned_csv, write_error_csv
 from app.services.transformer import transform_row
 from app.services.validator import (
@@ -45,19 +46,31 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
             error_filename = f"errors_{uuid4().hex}.csv"
             error_path = OUTPUT_DIR / error_filename
 
-            write_error_csv(
-                error_path,
-                [
-                    {
-                        "row_number": 0,
-                        "customer_id": "",
-                        "email": "",
-                        "country": "",
-                        "signup_date": "",
-                        "order_amount": "",
-                        "errors": "; ".join(column_errors),
-                    }
-                ],
+            header_error_rows = [
+                {
+                    "row_number": "0",
+                    "customer_id": "",
+                    "email": "",
+                    "country": "",
+                    "signup_date": "",
+                    "order_amount": "",
+                    "currency": "",
+                    "payment_method": "",
+                    "order_status": "",
+                    "product_category": "",
+                    "quantity": "",
+                    "discount_percent": "",
+                    "last_login_date": "",
+                    "errors": "; ".join(column_errors),
+                }
+            ]
+
+            write_error_csv(error_path, header_error_rows)
+
+            analysis = analyze_processed_data(
+                valid_rows=[],
+                error_rows=header_error_rows,
+                error_breakdown=error_breakdown,
             )
 
             logger.warning(
@@ -78,6 +91,7 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
                 "cleaned_path": "",
                 "error_path": str(error_path),
                 "error_breakdown": error_breakdown,
+                "analysis": analysis,
             }
 
         for row_number, row in enumerate(reader, start=2):
@@ -88,12 +102,19 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
 
                 error_rows.append(
                     {
-                        "row_number": row_number,
+                        "row_number": str(row_number),
                         "customer_id": row.get("customer_id", ""),
                         "email": row.get("email", ""),
                         "country": row.get("country", ""),
                         "signup_date": row.get("signup_date", ""),
                         "order_amount": row.get("order_amount", ""),
+                        "currency": row.get("currency", ""),
+                        "payment_method": row.get("payment_method", ""),
+                        "order_status": row.get("order_status", ""),
+                        "product_category": row.get("product_category", ""),
+                        "quantity": row.get("quantity", ""),
+                        "discount_percent": row.get("discount_percent", ""),
+                        "last_login_date": row.get("last_login_date", ""),
                         "errors": "; ".join(errors),
                     }
                 )
@@ -110,6 +131,12 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
     write_error_csv(error_path, error_rows)
 
     total_rows = len(valid_rows) + len(error_rows)
+
+    analysis = analyze_processed_data(
+        valid_rows=valid_rows,
+        error_rows=error_rows,
+        error_breakdown=error_breakdown,
+    )
 
     logger.info(
         "CSV processing completed",
@@ -133,4 +160,5 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
         "cleaned_path": str(cleaned_path),
         "error_path": str(error_path),
         "error_breakdown": error_breakdown,
+        "analysis": analysis,
     }

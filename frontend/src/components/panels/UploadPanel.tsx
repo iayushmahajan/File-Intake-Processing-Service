@@ -1,6 +1,40 @@
 import { ChangeEvent, DragEvent, useRef, useState } from "react";
 import { SectionCard } from "../layout/SectionCard";
 
+type NumericProfile = {
+    count: number;
+    min: number | null;
+    max: number | null;
+    average: number | null;
+};
+
+type TopValue = {
+    value: string;
+    count: number;
+};
+
+type ErrorPattern = {
+    pattern: string;
+    count: number;
+};
+
+type BusinessAnomaly = {
+    row: number;
+    column: string;
+    value: number;
+    message: string;
+};
+
+type DataQualityAnalysis = {
+    profiling: {
+        numeric: Record<string, NumericProfile>;
+        categorical: Record<string, TopValue[]>;
+    };
+    error_patterns: ErrorPattern[];
+    anomalies: BusinessAnomaly[];
+    insights: string[];
+};
+
 type ProcessingSummary = {
     total_rows: number;
     valid_rows: number;
@@ -10,6 +44,7 @@ type ProcessingSummary = {
     cleaned_path: string;
     error_path: string;
     error_breakdown: Record<string, number>;
+    analysis: DataQualityAnalysis;
 };
 
 export type UploadResult = {
@@ -33,6 +68,10 @@ const API_BASE_URL =
 const SAMPLE_CSV = `customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date
 CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10
 CUST-002,bob@example.com,IN,2026-04-03,89.99,INR,paypal,pending,clothing,1,5,2026-04-09
+CUST-003,charlie@example.com,US,2026-04-05,250.00,USD,card,completed,home,3,0,2026-04-12
+CUST-004,diana.example.com,FR,2026-04-07,49.90,EUR,bank_transfer,completed,books,1,15,2026-04-13
+CUST-005,ethan@example.com,GB,2026-04-08,180.75,BTC,paypal,pending,electronics,2,20,2026-04-14
+CUST-006,fatima@example.com,DE,2026-04-09,15.00,USD,card,cancelled,beauty,1,0,2026-04-15
 `;
 
 function formatFileSize(size: number) {
@@ -51,7 +90,7 @@ function downloadSampleCsv() {
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = "sample_customer_upload.csv";
+    link.download = "sample_customer_transactions.csv";
     link.click();
 
     URL.revokeObjectURL(url);
@@ -135,7 +174,7 @@ export function UploadPanel({
     return (
         <SectionCard
             title="Upload File"
-            description="Select a customer CSV file to validate and process."
+            description="Upload a customer transaction CSV for validation, transformation, and data quality analysis."
         >
             <div className="space-y-4">
                 <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
@@ -145,7 +184,9 @@ export function UploadPanel({
                                 Expected CSV format
                             </p>
                             <p className="mt-1 text-xs text-textMuted">
-                                customer_id, email, country, signup_date, order_amount
+                                customer_id, email, country, signup_date, order_amount,
+                                currency, payment_method, order_status, product_category,
+                                quantity, discount_percent, last_login_date
                             </p>
                         </div>
 
@@ -187,7 +228,8 @@ export function UploadPanel({
                         </p>
 
                         <p className="mt-2 text-sm text-textMuted">
-                            Or click to choose a file. Only customer CSV files are accepted.
+                            Or click to choose a file. Only customer transaction CSV files are
+                            accepted.
                         </p>
 
                         <button
@@ -235,8 +277,8 @@ export function UploadPanel({
                 {uploadMessage ? (
                     <div
                         className={`rounded-xl border px-4 py-3 text-sm ${uploadMessage.includes("successfully")
-                            ? "border-green-500/20 bg-green-500/10 text-green-300"
-                            : "border-red-500/20 bg-red-500/10 text-red-300"
+                                ? "border-green-500/20 bg-green-500/10 text-green-300"
+                                : "border-red-500/20 bg-red-500/10 text-red-300"
                             }`}
                     >
                         {uploadMessage}
@@ -249,7 +291,7 @@ export function UploadPanel({
                     onClick={handleUpload}
                     className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accentSoft disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {isUploading ? "Uploading..." : "Upload and Process CSV"}
+                    {isUploading ? "Uploading..." : "Upload and Analyze CSV"}
                 </button>
             </div>
         </SectionCard>

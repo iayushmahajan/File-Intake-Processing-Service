@@ -1,0 +1,11 @@
+customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date
+CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10
+CUST-002,bob@example.com,IN,2026-04-03,89.99,INR,paypal,pending,clothing,1,5,2026-04-09
+CUST-003,charlie@example.com,US,2026-04-05,250.00,USD,card,completed,home,3,0,2026-04-12
+,diana.example.com,FR,2026-04-07,49.90,EUR,bank_transfer,completed,books,1,15,2026-04-13
+CUST-005,ethan@example.com,GB,2026-04-08,180.75,BTC,paypal,pending,electronics,2,20,2026-04-14
+CUST-006,fatima@example.com,DE,2026-04-09,15.00,USD,card,cancelled,beauty,1,0,2026-04-15
+CUST-007,george@example.com,IN,2026-04-10,-540.20,INR,bank_transfer,completed,furniture,4,12,2026-04-16
+CUST-008,hanna@example.com,US,2026-04-11,75.30,USD,cash,pending,sports,2,8,2026-04-17
+CUST-009,ivan@example.com,FR,2026-04-12,310.00,EUR,paypal,completed,travel,1,25,2026-04-18
+CUST-010,julia@example.com,GB,wrong-date,99.99,USD,card,completed,clothing,2,150,2026-04-19

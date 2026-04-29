@@ -13,6 +13,7 @@ class ProcessingSummaryResponse(BaseModel):
     cleaned_path: str
     error_path: str
     error_breakdown: dict[str, int] = {}
+    analysis: dict = {}
 
 
 class UploadResponse(BaseModel):
