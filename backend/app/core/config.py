@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -11,4 +12,18 @@ APP_NAME = "File Intake & Processing Service"
 APP_VERSION = "0.1.0"
 APP_DESCRIPTION = (
     "Backend API for customer CSV upload, validation, transformation, and job tracking."
+)
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# GitHub Models / Azure compatible endpoint
+OPENAI_BASE_URL = os.getenv(
+    "OPENAI_BASE_URL",
+    "https://models.inference.ai.azure.com"
+)
+
+# Use whatever model is available (you can change later)
+OPENAI_MODEL = os.getenv(
+    "OPENAI_MODEL",
+    "gpt-5-mini"
 )
