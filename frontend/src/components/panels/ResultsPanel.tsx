@@ -54,6 +54,46 @@ function getSeverityClass(severity?: string) {
     return "border-green-500/20 bg-green-500/10 text-green-300";
 }
 
+function downloadAiReport(filename: string, report: AiReport) {
+    const markdown = `# AI Data Quality Report
+
+## File
+${filename}
+
+## Quality Score
+${report.quality_score}/100
+
+## Severity
+${report.severity.toUpperCase()}
+
+## Executive Summary
+${report.executive_summary}
+
+## Key Issues
+${report.key_issues.map((issue) => `- ${issue}`).join("\n")}
+
+## Recommended Actions
+${report.recommended_actions.map((action) => `- ${action}`).join("\n")}
+
+## Business Impact
+${report.business_impact}
+`;
+
+    const blob = new Blob([markdown], {
+        type: "text/markdown;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    const safeFilename = filename.replace(/\.csv$/i, "");
+    link.href = url;
+    link.download = `${safeFilename}_ai_report.md`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
 export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
     const summary = result?.processing_summary;
 
@@ -267,14 +307,26 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                             </p>
                         </div>
 
-                        {aiReport ? (
-                            <div
-                                className={`rounded-full border px-3 py-1 text-xs font-medium ${getSeverityClass(
-                                    aiReport.severity
-                                )}`}
-                            >
-                                {aiReport.severity.toUpperCase()} · Score{" "}
-                                {aiReport.quality_score}/100
+                        {aiReport && result ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div
+                                    className={`rounded-full border px-3 py-1 text-xs font-medium ${getSeverityClass(
+                                        aiReport.severity
+                                    )}`}
+                                >
+                                    {aiReport.severity.toUpperCase()} · Score{" "}
+                                    {aiReport.quality_score}/100
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        downloadAiReport(result.original_filename, aiReport)
+                                    }
+                                    className="rounded-full border border-borderSoft px-3 py-1 text-xs font-medium text-textMain transition hover:border-accent"
+                                >
+                                    Download Report
+                                </button>
                             </div>
                         ) : null}
                     </div>
