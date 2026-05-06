@@ -35,11 +35,6 @@ type PreviewState = {
     errorMessage: string | null;
 };
 
-type AiAnalysisResponse = {
-    raw_response?: string;
-    error?: string;
-};
-
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -113,8 +108,6 @@ export function JobsPanel({ refreshKey = 0 }: JobsPanelProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [copiedJobId, setCopiedJobId] = useState<number | null>(null);
-    const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResponse | null>(null);
-    const [isAiLoading, setIsAiLoading] = useState(false);
 
     const [preview, setPreview] = useState<PreviewState>({
         isOpen: false,
@@ -246,33 +239,6 @@ export function JobsPanel({ refreshKey = 0 }: JobsPanelProps) {
         }
     }
 
-    async function handleGenerateAiAnalysis(jobId: number) {
-        try {
-            setIsAiLoading(true);
-            setAiAnalysis(null);
-
-            const response = await fetch(
-                `${API_BASE_URL}/api/v1/jobs/${jobId}/ai-analysis`,
-                {
-                    method: "POST",
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Could not generate AI analysis.");
-            }
-
-            const data = (await response.json()) as AiAnalysisResponse;
-            setAiAnalysis(data);
-        } catch (error) {
-            setAiAnalysis({
-                error: error instanceof Error ? error.message : "Something went wrong.",
-            });
-        } finally {
-            setIsAiLoading(false);
-        }
-    }
-
     function closePreview() {
         setPreview({
             isOpen: false,
@@ -344,10 +310,7 @@ export function JobsPanel({ refreshKey = 0 }: JobsPanelProps) {
                                     <button
                                         key={job.id}
                                         type="button"
-                                        onClick={() => {
-                                            setSelectedJob(job);
-                                            setAiAnalysis(null);
-                                        }}
+                                        onClick={() => setSelectedJob(job)}
                                         className={`w-full rounded-xl border px-4 py-3 text-left transition ${isSelected
                                                 ? "border-accent bg-accent/10"
                                                 : "border-borderSoft bg-background/40 hover:border-accent/60"
@@ -501,41 +464,6 @@ export function JobsPanel({ refreshKey = 0 }: JobsPanelProps) {
                                         Download Errors
                                     </a>
                                 </div>
-                            </div>
-
-                            <div className="mt-4 rounded-xl border border-accent/20 bg-accent/10 px-4 py-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-medium text-textMain">
-                                            AI Data Quality Analysis
-                                        </p>
-                                        <p className="mt-1 text-xs text-textMuted">
-                                            Generate an LLM-based business summary for this processed
-                                            job.
-                                        </p>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleGenerateAiAnalysis(selectedJob.id)}
-                                        disabled={isAiLoading}
-                                        className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-white transition hover:bg-accentSoft disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        {isAiLoading ? "Generating..." : "Generate"}
-                                    </button>
-                                </div>
-
-                                {aiAnalysis?.error ? (
-                                    <div className="mt-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
-                                        {aiAnalysis.error}
-                                    </div>
-                                ) : null}
-
-                                {aiAnalysis?.raw_response ? (
-                                    <div className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-borderSoft bg-background/60 px-3 py-3 text-xs leading-relaxed text-textMain">
-                                        {aiAnalysis.raw_response}
-                                    </div>
-                                ) : null}
                             </div>
                         </div>
                     ) : null}

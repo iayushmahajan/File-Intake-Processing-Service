@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { SectionCard } from "../layout/SectionCard";
 import type { UploadResult } from "./UploadPanel";
 
@@ -5,6 +6,24 @@ type ResultsPanelProps = {
     result: UploadResult | null;
     isLoading?: boolean;
 };
+
+type AiReport = {
+    quality_score: number;
+    severity: "low" | "medium" | "high";
+    executive_summary: string;
+    key_issues: string[];
+    recommended_actions: string[];
+    business_impact: string;
+};
+
+type AiAnalysisResponse = {
+    report?: AiReport | null;
+    raw_response?: string;
+    error?: string;
+};
+
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const VALIDATION_RULES = [
     "customer_id is required",
@@ -23,21 +42,23 @@ function getPercentage(value: number, total: number) {
     return Math.round((value / total) * 100);
 }
 
-function formatMetric(value: number | null) {
-    if (value === null) return "—";
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
+function getSeverityClass(severity?: string) {
+    if (severity === "high") {
+        return "border-red-500/20 bg-red-500/10 text-red-300";
+    }
 
-function formatColumnLabel(value: string) {
-    return value
-        .split("_")
-        .map((word) => word[0]?.toUpperCase() + word.slice(1))
-        .join(" ");
+    if (severity === "medium") {
+        return "border-yellow-500/20 bg-yellow-500/10 text-yellow-200";
+    }
+
+    return "border-green-500/20 bg-green-500/10 text-green-300";
 }
 
 export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
     const summary = result?.processing_summary;
-    const analysis = summary?.analysis;
+
+    const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResponse | null>(null);
+    const [isAiLoading, setIsAiLoading] = useState(false);
 
     const totalRows = summary?.total_rows ?? 0;
     const validRows = summary?.valid_rows ?? 0;
@@ -51,18 +72,49 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
     const hasErrors = hasResult && invalidRows > 0;
 
     const errorBreakdown = Object.entries(summary?.error_breakdown ?? {});
-    const numericProfiles = Object.entries(analysis?.profiling.numeric ?? {});
-    const categoricalProfiles = Object.entries(
-        analysis?.profiling.categorical ?? {}
-    );
-    const errorPatterns = analysis?.error_patterns ?? [];
-    const anomalies = analysis?.anomalies ?? [];
-    const insights = analysis?.insights ?? [];
+
+    useEffect(() => {
+        async function generateAiAnalysis(jobId: number) {
+            try {
+                setIsAiLoading(true);
+                setAiAnalysis(null);
+
+                const response = await fetch(
+                    `${API_BASE_URL}/api/v1/jobs/${jobId}/ai-analysis`,
+                    {
+                        method: "POST",
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Could not generate AI analysis.");
+                }
+
+                const data = (await response.json()) as AiAnalysisResponse;
+                setAiAnalysis(data);
+            } catch (error) {
+                setAiAnalysis({
+                    error:
+                        error instanceof Error ? error.message : "Something went wrong.",
+                });
+            } finally {
+                setIsAiLoading(false);
+            }
+        }
+
+        if (result?.job_id) {
+            generateAiAnalysis(result.job_id);
+        } else {
+            setAiAnalysis(null);
+        }
+    }, [result?.job_id]);
+
+    const aiReport = aiAnalysis?.report ?? null;
 
     return (
         <SectionCard
             title="Processing Summary"
-            description="Review row quality, validation rules, and generated data quality insights."
+            description="Review validation results and AI-generated data quality analysis."
         >
             <div
                 className={`space-y-5 transition-all duration-500 ${hasResult ? "opacity-100" : "opacity-90"
@@ -91,23 +143,8 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                             ? "The uploaded CSV is being validated, transformed, and analyzed."
                             : result
                                 ? `Job #${result.job_id} created for ${result.original_filename}.`
-                                : "Once a file is uploaded, this area will show validation results and data quality analysis."}
+                                : "Once a file is uploaded, this area will show validation results and AI analysis."}
                     </p>
-                </div>
-
-                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                    <p className="text-sm font-medium text-textMain">Validation Rules</p>
-
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {VALIDATION_RULES.map((rule) => (
-                            <div
-                                key={rule}
-                                className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-2 text-xs text-textMuted"
-                            >
-                                {rule}
-                            </div>
-                        ))}
-                    </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -178,137 +215,22 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                             <div className="h-full w-0 bg-success" />
                         )}
                     </div>
-
-                    {summary ? (
-                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-textMuted">
-                            <span className="inline-flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-success" />
-                                {validRows} valid
-                            </span>
-
-                            <span className="inline-flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-danger" />
-                                {invalidRows} invalid
-                            </span>
-                        </div>
-                    ) : null}
                 </div>
 
-                {insights.length > 0 ? (
-                    <div className="rounded-xl border border-accent/20 bg-accent/10 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">
-                            Data Quality Insights
-                        </p>
-                        <div className="mt-3 space-y-2">
-                            {insights.map((insight) => (
-                                <p
-                                    key={insight}
-                                    className="rounded-lg border border-borderSoft bg-background/40 px-3 py-2 text-sm text-textMain"
-                                >
-                                    {insight}
-                                </p>
-                            ))}
-                        </div>
+                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
+                    <p className="text-sm font-medium text-textMain">Validation Rules</p>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {VALIDATION_RULES.map((rule) => (
+                            <div
+                                key={rule}
+                                className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-2 text-xs text-textMuted"
+                            >
+                                {rule}
+                            </div>
+                        ))}
                     </div>
-                ) : null}
-
-                {numericProfiles.length > 0 ? (
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">
-                            Numeric Profiling
-                        </p>
-                        <p className="mt-1 text-xs text-textMuted">
-                            Basic statistics calculated from valid rows.
-                        </p>
-
-                        <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                            {numericProfiles.map(([column, profile]) => (
-                                <div
-                                    key={column}
-                                    className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-3"
-                                >
-                                    <p className="text-sm font-medium text-textMain">
-                                        {formatColumnLabel(column)}
-                                    </p>
-
-                                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                        <div>
-                                            <p className="text-textMuted">Min</p>
-                                            <p className="font-medium text-textMain">
-                                                {formatMetric(profile.min)}
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-textMuted">Max</p>
-                                            <p className="font-medium text-textMain">
-                                                {formatMetric(profile.max)}
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-textMuted">Average</p>
-                                            <p className="font-medium text-textMain">
-                                                {formatMetric(profile.average)}
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-textMuted">Count</p>
-                                            <p className="font-medium text-textMain">
-                                                {profile.count}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
-
-                {categoricalProfiles.length > 0 ? (
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">
-                            Categorical Profiling
-                        </p>
-                        <p className="mt-1 text-xs text-textMuted">
-                            Top values detected in valid rows.
-                        </p>
-
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {categoricalProfiles.map(([column, values]) => (
-                                <div
-                                    key={column}
-                                    className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-3"
-                                >
-                                    <p className="text-sm font-medium text-textMain">
-                                        {formatColumnLabel(column)}
-                                    </p>
-
-                                    <div className="mt-3 space-y-2">
-                                        {values.length > 0 ? (
-                                            values.map((item) => (
-                                                <div
-                                                    key={`${column}-${item.value}`}
-                                                    className="flex items-center justify-between gap-3 text-xs"
-                                                >
-                                                    <span className="truncate text-textMuted">
-                                                        {item.value}
-                                                    </span>
-                                                    <span className="font-medium text-textMain">
-                                                        {item.count}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-xs text-textMuted">No values</p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
+                </div>
 
                 {hasErrors ? (
                     <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
@@ -333,56 +255,94 @@ export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
                     </div>
                 ) : null}
 
-                {errorPatterns.length > 0 ? (
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">Error Patterns</p>
-                        <p className="mt-1 text-xs text-textMuted">
-                            Invalid rows grouped by repeated combinations of validation errors.
-                        </p>
+                <div className="rounded-xl border border-accent/20 bg-accent/10 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-textMain">
+                                AI Data Quality Analysis
+                            </p>
+                            <p className="mt-1 text-xs text-textMuted">
+                                Automatically generated from validation results, file samples,
+                                and detected data issues.
+                            </p>
+                        </div>
 
-                        <div className="mt-3 space-y-2">
-                            {errorPatterns.slice(0, 5).map((pattern) => (
-                                <div
-                                    key={pattern.pattern}
-                                    className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-2"
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <p className="text-xs text-textMuted">{pattern.pattern}</p>
-                                        <span className="shrink-0 rounded-full border border-borderSoft px-2 py-0.5 text-xs text-textMain">
-                                            {pattern.count}
-                                        </span>
+                        {aiReport ? (
+                            <div
+                                className={`rounded-full border px-3 py-1 text-xs font-medium ${getSeverityClass(
+                                    aiReport.severity
+                                )}`}
+                            >
+                                {aiReport.severity.toUpperCase()} · Score{" "}
+                                {aiReport.quality_score}/100
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {isAiLoading ? (
+                        <div className="mt-4 rounded-lg border border-borderSoft bg-background/50 px-3 py-3 text-sm text-textMuted">
+                            Generating AI analysis...
+                        </div>
+                    ) : null}
+
+                    {aiAnalysis?.error ? (
+                        <div className="mt-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-3 text-sm text-yellow-200">
+                            {aiAnalysis.error}
+                        </div>
+                    ) : null}
+
+                    {aiReport ? (
+                        <div className="mt-4 space-y-4">
+                            <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
+                                <p className="text-xs uppercase tracking-wide text-textMuted">
+                                    Executive Summary
+                                </p>
+                                <p className="mt-2 text-sm leading-relaxed text-textMain">
+                                    {aiReport.executive_summary}
+                                </p>
+                            </div>
+
+                            <div className="grid gap-3 lg:grid-cols-2">
+                                <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
+                                    <p className="text-xs uppercase tracking-wide text-textMuted">
+                                        Key Issues
+                                    </p>
+
+                                    <div className="mt-2 space-y-2">
+                                        {aiReport.key_issues.map((issue) => (
+                                            <p key={issue} className="text-sm text-textMain">
+                                                • {issue}
+                                            </p>
+                                        ))}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
 
-                {anomalies.length > 0 ? (
-                    <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">
-                            Business Anomalies
-                        </p>
-                        <p className="mt-1 text-xs text-textMuted">
-                            Potentially unusual values detected in valid rows.
-                        </p>
-
-                        <div className="mt-3 space-y-2">
-                            {anomalies.slice(0, 5).map((anomaly) => (
-                                <div
-                                    key={`${anomaly.row}-${anomaly.column}-${anomaly.value}`}
-                                    className="rounded-lg border border-borderSoft bg-background/40 px-3 py-2"
-                                >
-                                    <p className="text-sm text-textMain">{anomaly.message}</p>
-                                    <p className="mt-1 text-xs text-textMuted">
-                                        Row {anomaly.row}, {formatColumnLabel(anomaly.column)}:{" "}
-                                        {anomaly.value}
+                                <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
+                                    <p className="text-xs uppercase tracking-wide text-textMuted">
+                                        Recommended Actions
                                     </p>
+
+                                    <div className="mt-2 space-y-2">
+                                        {aiReport.recommended_actions.map((action) => (
+                                            <p key={action} className="text-sm text-textMain">
+                                                • {action}
+                                            </p>
+                                        ))}
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
+                                <p className="text-xs uppercase tracking-wide text-textMuted">
+                                    Business Impact
+                                </p>
+                                <p className="mt-2 text-sm leading-relaxed text-textMain">
+                                    {aiReport.business_impact}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                ) : null}
+                    ) : null}
+                </div>
 
                 {summary ? (
                     <div className="grid gap-3 sm:grid-cols-2">
