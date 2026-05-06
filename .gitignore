@@ -12,3 +12,6 @@ backend/data/output/*
 
 !backend/data/input/.gitkeep
 !backend/data/output/.gitkeep
+backend/.env
+.env
+.env.*
