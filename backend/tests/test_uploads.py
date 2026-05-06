@@ -17,6 +17,11 @@ INVALID_CSV = (
 )
 
 
+def assert_readable_output_filename(filename: str, expected_marker: str) -> None:
+    assert filename.endswith(".csv")
+    assert expected_marker in filename
+
+
 def test_upload_csv_success() -> None:
     with TestClient(app) as client:
         response = client.post(
@@ -33,8 +38,16 @@ def test_upload_csv_success() -> None:
     assert data["processing_summary"]["total_rows"] == 2
     assert data["processing_summary"]["valid_rows"] == 2
     assert data["processing_summary"]["invalid_rows"] == 0
-    assert data["processing_summary"]["cleaned_filename"].startswith("cleaned_")
-    assert data["processing_summary"]["error_filename"].startswith("errors_")
+
+    assert_readable_output_filename(
+        data["processing_summary"]["cleaned_filename"],
+        "_clean",
+    )
+    assert_readable_output_filename(
+        data["processing_summary"]["error_filename"],
+        "_errors",
+    )
+
     assert isinstance(data["job_id"], int)
 
 
@@ -62,4 +75,14 @@ def test_upload_csv_with_invalid_rows() -> None:
     assert data["processing_summary"]["total_rows"] == 3
     assert data["processing_summary"]["valid_rows"] == 2
     assert data["processing_summary"]["invalid_rows"] == 1
+
+    assert_readable_output_filename(
+        data["processing_summary"]["cleaned_filename"],
+        "_clean",
+    )
+    assert_readable_output_filename(
+        data["processing_summary"]["error_filename"],
+        "_errors",
+    )
+
     assert isinstance(data["job_id"], int)

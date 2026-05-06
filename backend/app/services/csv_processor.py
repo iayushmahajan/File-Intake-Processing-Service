@@ -1,7 +1,7 @@
 import csv
+import re
 from pathlib import Path
-from typing import Dict, List
-from uuid import uuid4
+from typing import Dict, List, Tuple
 
 from app.core.config import OUTPUT_DIR
 from app.core.logging import get_logger
@@ -23,6 +23,71 @@ def add_errors_to_breakdown(error_breakdown: Dict[str, int], errors: List[str]) 
         error_breakdown[category] = error_breakdown.get(category, 0) + 1
 
 
+def strip_saved_file_prefix(input_path: Path) -> str:
+    """
+    Uploaded files are stored with a UUID prefix, for example:
+    6a6cba5543aa49ecac565829aa86269e_normal_demo.csv
+
+    For output files, we want user-friendly names:
+    normal_demo_clean.csv
+    normal_demo_errors.csv
+    """
+    stem = input_path.stem
+
+    parts = stem.split("_", 1)
+
+    if len(parts) == 2:
+        possible_uuid, original_stem = parts
+
+        if re.fullmatch(r"[a-fA-F0-9]{32}", possible_uuid):
+            return original_stem
+
+    return stem
+
+
+def sanitize_filename_stem(value: str) -> str:
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]+", "_", value.strip())
+    sanitized = sanitized.strip("_")
+
+    return sanitized or "processed_file"
+
+
+def get_available_output_path(filename: str) -> Path:
+    """
+    Prevent overwriting if the same file is uploaded multiple times.
+    Example:
+    normal_demo_clean.csv
+    normal_demo_clean_2.csv
+    normal_demo_clean_3.csv
+    """
+    output_path = OUTPUT_DIR / filename
+
+    if not output_path.exists():
+        return output_path
+
+    stem = output_path.stem
+    suffix = output_path.suffix
+
+    counter = 2
+
+    while True:
+        candidate = OUTPUT_DIR / f"{stem}_{counter}{suffix}"
+
+        if not candidate.exists():
+            return candidate
+
+        counter += 1
+
+
+def build_output_paths(input_path: Path) -> Tuple[str, Path, str, Path]:
+    readable_stem = sanitize_filename_stem(strip_saved_file_prefix(input_path))
+
+    cleaned_path = get_available_output_path(f"{readable_stem}_clean.csv")
+    error_path = get_available_output_path(f"{readable_stem}_errors.csv")
+
+    return cleaned_path.name, cleaned_path, error_path.name, error_path
+
+
 def process_csv_file(input_path: Path) -> Dict[str, object]:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -35,6 +100,10 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
     error_rows: List[Dict[str, str]] = []
     error_breakdown: Dict[str, int] = {}
 
+    cleaned_filename, cleaned_path, error_filename, error_path = build_output_paths(
+        input_path
+    )
+
     with input_path.open("r", newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
 
@@ -42,9 +111,6 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
 
         if not columns_valid:
             add_errors_to_breakdown(error_breakdown, column_errors)
-
-            error_filename = f"errors_{uuid4().hex}.csv"
-            error_path = OUTPUT_DIR / error_filename
 
             header_error_rows = [
                 {
@@ -120,12 +186,6 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
                 )
             else:
                 valid_rows.append(transform_row(row))
-
-    cleaned_filename = f"cleaned_{uuid4().hex}.csv"
-    error_filename = f"errors_{uuid4().hex}.csv"
-
-    cleaned_path = OUTPUT_DIR / cleaned_filename
-    error_path = OUTPUT_DIR / error_filename
 
     write_cleaned_csv(cleaned_path, valid_rows)
     write_error_csv(error_path, error_rows)
