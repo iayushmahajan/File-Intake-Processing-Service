@@ -8,9 +8,11 @@ This project started as a backend-focused CSV processing service and evolved int
 
 ## Live Demo
 
-- **Frontend:** _Add Vercel link here_
-- **Backend API:** _Add Render link here_
-- **API Docs:** _Add `/docs` link here_
+- **Frontend:** https://file-intake-processing-service.vercel.app/
+- **Backend API:** https://file-intake-processing-service.onrender.com
+- **API Docs:** https://file-intake-processing-service.onrender.com/docs
+
+> **Note:** The backend is hosted on Render's free tier, so the first request may take some time while the service wakes up. The AI analysis also depends on GitHub Models and can take a few seconds to generate.
 
 ---
 
@@ -91,6 +93,8 @@ _Add 2–3 screenshots here after deployment._
 - Summarize major issues in plain language
 - Highlight likely root causes
 - Provide business impact and recommended actions
+
+> **Performance note:** AI analysis is generated through GitHub Models, so response time can vary depending on model availability and request latency. The app keeps the analysis structured and concise to reduce unnecessary delay.
 
 ### UX
 - Drag-and-drop upload zone
@@ -371,7 +375,7 @@ GitHub Actions is configured to install backend dependencies, run backend tests,
 
 ## Deployment
 
-### Recommended setup
+### Setup
 - **Frontend:** Vercel
 - **Backend:** Render
 
@@ -392,6 +396,14 @@ Set this in Vercel:
 ```env
 VITE_API_BASE_URL=https://your-render-backend-url.onrender.com
 ```
+
+### Hosting Notes
+
+The frontend is deployed on Vercel and the backend is deployed on Render.
+
+Since the backend currently uses local SQLite and generated CSV files on the backend filesystem, this deployment is intended as a portfolio/demo deployment rather than a production setup. On Render's free tier, the backend may sleep after inactivity, so the first API request can be slow.
+
+For a production version, generated files should be moved to cloud object storage and job metadata should be stored in a managed database such as PostgreSQL.
 
 ---
 
