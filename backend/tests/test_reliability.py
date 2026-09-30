@@ -1,0 +1,214 @@
+import json
+from types import SimpleNamespace
+
+import pytest
+from app.core.config import INPUT_DIR
+from app.main import app
+from app.schemas.ai import AIReport
+from app.services.quality import calculate_quality
+from app.services.validator import REQUIRED_COLUMNS, validate_row
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+HEADER = ",".join(REQUIRED_COLUMNS)
+ROW = "C1,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,electronics,2,10,2026-04-10"
+
+
+def upload(client, text, name="sample.csv"):
+    response = client.post(
+        "/api/v1/uploads", files={"file": (name, text.encode(), "text/csv")}
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_header_failure_persisted_and_safe_download():
+    with TestClient(app) as client:
+        result = upload(client, "email\nalice@example.com\n")
+        assert result["status"] == "failed"
+        detail = client.get(f"/api/v1/jobs/{result['job_id']}").json()
+        assert detail["status"] == "failed"
+        assert "Missing required columns" in detail["error_message"]
+        assert (
+            client.get(f"/api/v1/jobs/{result['job_id']}/download/clean").status_code
+            == 404
+        )
+        assert (
+            client.get(f"/api/v1/jobs/{result['job_id']}/download/errors").status_code
+            == 200
+        )
+        assert (
+            client.post(f"/api/v1/jobs/{result['job_id']}/ai-analysis").status_code
+            == 409
+        )
+        assert "saved_path" not in result
+        assert "cleaned_path" not in result["processing_summary"]
+
+
+def test_processing_exception_retains_failed_job(monkeypatch):
+    def fail(_):
+        raise RuntimeError("private/path")
+
+    monkeypatch.setattr("app.api.routes.uploads.process_csv_file", fail)
+    with TestClient(app) as client:
+        result = upload(client, HEADER + "\n" + ROW)
+        assert result["status"] == "failed"
+        assert "private/path" not in json.dumps(result)
+        assert client.get("/api/v1/jobs?status=failed").json()["total"] == 1
+
+
+def test_persisted_quality_duplicates_and_original_anomaly_row():
+    anomaly = ROW.replace("C1,", "C2,").replace("125.50", "1500")
+    invalid = ROW.replace("alice@example.com", "bad-email")
+    with TestClient(app) as client:
+        result = upload(client, "\n".join([HEADER, ROW, ROW, invalid, anomaly]))
+        job = client.get(f"/api/v1/jobs/{result['job_id']}").json()
+        assert (job["total_rows"], job["valid_rows"], job["invalid_rows"]) == (4, 2, 2)
+        assert job["analysis"]["duplicate_records"] == 1
+        assert job["analysis"]["anomalies"][0]["row"] == 5
+        assert job["analysis"]["quality"]["score"] == 62.5
+        assert job["analysis"]["error_preview"][0]["row_number"] == "3"
+        assert job["duration_ms"] >= 0
+        assert job["file_size"] > 0
+
+
+def test_pagination_search_and_status():
+    with TestClient(app) as client:
+        upload(client, HEADER + "\n" + ROW, "alpha.csv")
+        upload(client, HEADER + "\n" + ROW, "beta.csv")
+        upload(client, "bad\nvalue", "broken.csv")
+        assert client.get("/api/v1/jobs?page=1&page_size=1").json()["total"] == 3
+        assert len(client.get("/api/v1/jobs?page=2&page_size=1").json()["jobs"]) == 1
+        assert client.get("/api/v1/jobs?status=failed").json()["total"] == 1
+        assert client.get("/api/v1/jobs?search=alpha").json()["total"] == 1
+        assert client.get("/api/v1/jobs?search=%25").json()["total"] == 0
+        assert client.get("/api/v1/jobs?page=0").status_code == 422
+
+
+def test_file_names_and_repeated_uploads():
+    with TestClient(app) as client:
+        first = upload(client, HEADER + "\n" + ROW, "../../report.csv")
+        second = upload(client, HEADER + "\n" + ROW, "../../report.csv")
+        assert "/" not in first["saved_filename"]
+        assert (INPUT_DIR / first["saved_filename"]).is_file()
+        assert (
+            first["processing_summary"]["cleaned_filename"]
+            != second["processing_summary"]["cleaned_filename"]
+        )
+
+
+def test_size_limit_and_partial_cleanup(monkeypatch):
+    monkeypatch.setattr("app.utils.file_io.MAX_UPLOAD_BYTES", 4)
+    before = set(INPUT_DIR.glob("*"))
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/uploads", files={"file": ("large.csv", b"12345", "text/csv")}
+        )
+        assert response.status_code == 413
+        assert client.get("/api/v1/jobs").json()["total"] == 0
+    assert set(INPUT_DIR.glob("*")) == before
+
+
+@pytest.mark.parametrize(
+    "field,value,expected",
+    [
+        ("order_amount", "NaN", "invalid order_amount"),
+        ("order_amount", "Infinity", "invalid order_amount"),
+        ("discount_percent", "NaN", "invalid discount_percent"),
+        ("email", "two@@example.com", "email must be valid"),
+        ("last_login_date", "2026-03-01", "last_login_date precedes signup_date"),
+    ],
+)
+def test_stronger_validation(field, value, expected):
+    row = dict(zip(REQUIRED_COLUMNS, ROW.split(",")))
+    row[field] = value
+    assert expected in validate_row(row, 2)
+
+
+def test_scores_are_deterministic_and_empty_is_unscored():
+    assert calculate_quality(0, 0, 0, 12, 0, 0)["score"] is None
+    assert calculate_quality(10, 10, 0, 12, 0, 0)["score"] == 100
+    assert calculate_quality(10, 8, 12, 12, 1, 2)["score"] == 82.5
+
+
+def test_ai_schema_rejects_incomplete_or_out_of_range():
+    with pytest.raises(ValidationError):
+        AIReport.model_validate({"quality_score": 101})
+
+
+def test_ai_privacy_persistence_and_cache(monkeypatch):
+    captured = []
+    report = dict(
+        quality_score=90,
+        severity="low",
+        executive_summary="Good quality.",
+        key_issues=[],
+        recommended_actions=[],
+        business_impact="Ready for review.",
+    )
+
+    def fake(summary):
+        captured.append(summary)
+        return {"report": report}
+
+    monkeypatch.setattr("app.api.routes.jobs.generate_ai_analysis", fake)
+    with TestClient(app) as client:
+        result = upload(client, HEADER + "\n" + ROW, "customer-secret.csv")
+        url = f"/api/v1/jobs/{result['job_id']}"
+        assert client.post(url + "/ai-analysis").json()["report"] == report
+        assert client.post(url + "/ai-analysis").json()["report"] == report
+        assert client.get(url).json()["ai_report"] == report
+    assert len(captured) == 1
+    sent = json.dumps(captured)
+    assert "alice" not in sent and "C1" not in sent and "customer-secret" not in sent
+
+
+def test_ai_malformed_response_and_no_key(monkeypatch):
+    from app.services import llm_analyzer
+
+    monkeypatch.setattr(llm_analyzer, "OPENAI_API_KEY", "")
+    assert llm_analyzer.generate_ai_analysis({})["report"] is None
+    monkeypatch.setattr(llm_analyzer, "OPENAI_API_KEY", "test-only")
+    create = lambda **kwargs: SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content='{"quality_score": 100}'))
+        ]
+    )
+    monkeypatch.setattr(
+        llm_analyzer,
+        "OpenAI",
+        lambda **kwargs: SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+        ),
+    )
+    assert llm_analyzer.generate_ai_analysis({})["report"] is None
+
+
+def test_utf8_bom_and_multiline_records():
+    with TestClient(app) as client:
+        row = ROW.replace("electronics", '"home,\nelectronics"')
+        result = upload(client, "\ufeff" + HEADER + "\n" + row)
+        assert result["status"] == "completed"
+        assert result["processing_summary"]["valid_rows"] == 1
+
+
+def test_empty_and_duplicate_headers_fail():
+    with TestClient(app) as client:
+        assert upload(client, HEADER + "\n")["status"] == "failed"
+        assert upload(client, HEADER + ",email\n")["status"] == "failed"
+
+
+def test_long_numeric_search_and_case_insensitivity():
+    with TestClient(app) as client:
+        upload(client, HEADER + "\n" + ROW, "MixedCase.csv")
+        assert client.get("/api/v1/jobs?search=mixedcase").json()["total"] == 1
+        assert client.get("/api/v1/jobs?search=" + "9" * 100).json()["total"] == 0
+
+
+def test_non_utf8_is_a_persisted_failure():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/uploads", files={"file": ("broken.csv", b"\xff\xfe", "text/csv")}
+        )
+        assert response.json()["status"] == "failed"
+        assert client.get("/api/v1/jobs?status=failed").json()["total"] == 1

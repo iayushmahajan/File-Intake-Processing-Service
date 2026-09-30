@@ -26,5 +26,7 @@ tomli==2.4.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.44.0
-openai
-python-dotenv
+openai==2.54.0
+python-dotenv==1.2.3
+alembic==1.18.4
+psycopg[binary]==3.3.3

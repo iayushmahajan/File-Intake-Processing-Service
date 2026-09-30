@@ -15,3 +15,12 @@ backend/data/output/*
 backend/.env
 .env
 .env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
+backend/data/*.db

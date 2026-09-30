@@ -1,6 +1,5 @@
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Any
-
+from typing import Any, Dict, List
 
 NUMERIC_COLUMNS = ["order_amount", "quantity", "discount_percent"]
 CATEGORICAL_COLUMNS = [
@@ -19,7 +18,9 @@ def safe_decimal(value: str) -> Decimal | None:
         return None
 
 
-def get_top_values(rows: List[Dict[str, str]], column: str, limit: int = 3) -> List[Dict[str, Any]]:
+def get_top_values(
+    rows: List[Dict[str, str]], column: str, limit: int = 3
+) -> List[Dict[str, Any]]:
     counts: Dict[str, int] = {}
 
     for row in rows:
@@ -31,17 +32,11 @@ def get_top_values(rows: List[Dict[str, str]], column: str, limit: int = 3) -> L
 
     sorted_values = sorted(counts.items(), key=lambda item: item[1], reverse=True)
 
-    return [
-        {"value": value, "count": count}
-        for value, count in sorted_values[:limit]
-    ]
+    return [{"value": value, "count": count} for value, count in sorted_values[:limit]]
 
 
 def profile_numeric_column(rows: List[Dict[str, str]], column: str) -> Dict[str, Any]:
-    values = [
-        safe_decimal(row.get(column, ""))
-        for row in rows
-    ]
+    values = [safe_decimal(row.get(column, "")) for row in rows]
     numeric_values = [value for value in values if value is not None]
 
     if not numeric_values:
@@ -115,7 +110,9 @@ def group_error_patterns(error_rows: List[Dict[str, str]]) -> List[Dict[str, Any
             sorted(error.strip() for error in errors.split(";") if error.strip())
         )
 
-        pattern_counts[normalized_pattern] = pattern_counts.get(normalized_pattern, 0) + 1
+        pattern_counts[normalized_pattern] = (
+            pattern_counts.get(normalized_pattern, 0) + 1
+        )
 
     sorted_patterns = sorted(
         pattern_counts.items(),
@@ -142,17 +139,25 @@ def generate_insights(
     insights: List[str] = []
 
     if total_rows == 0:
-        insights.append("No data rows were processed. Check whether the file contains valid CSV rows.")
+        insights.append(
+            "No data rows were processed. Check whether the file contains valid CSV rows."
+        )
         return insights
 
     invalid_rate = invalid_rows / total_rows
 
     if invalid_rate == 0:
-        insights.append("All rows passed validation. The file is ready for downstream processing.")
+        insights.append(
+            "All rows passed validation. The file is ready for downstream processing."
+        )
     elif invalid_rate >= 0.5:
-        insights.append("More than half of the uploaded rows failed validation. This suggests a source-system or export-format issue.")
+        insights.append(
+            "More than half of the uploaded rows failed validation. This suggests a source-system or export-format issue."
+        )
     else:
-        insights.append("Some rows failed validation, but most records can still be processed.")
+        insights.append(
+            "Some rows failed validation, but most records can still be processed."
+        )
 
     if error_breakdown:
         dominant_category, dominant_count = max(
@@ -196,8 +201,7 @@ def analyze_processed_data(
             for column in NUMERIC_COLUMNS
         },
         "categorical": {
-            column: get_top_values(valid_rows, column)
-            for column in CATEGORICAL_COLUMNS
+            column: get_top_values(valid_rows, column) for column in CATEGORICAL_COLUMNS
         },
     }
 

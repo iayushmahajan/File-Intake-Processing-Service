@@ -1,18 +1,20 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data"))).resolve()
 INPUT_DIR = DATA_DIR / "input"
 OUTPUT_DIR = DATA_DIR / "output"
 DB_PATH = BASE_DIR / "file_processing.db"
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
 APP_NAME = "File Intake & Processing Service"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 APP_DESCRIPTION = (
     "Backend API for customer CSV upload, validation, transformation, and job tracking."
 )
@@ -20,13 +22,15 @@ APP_DESCRIPTION = (
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # GitHub Models / Azure compatible endpoint
-OPENAI_BASE_URL = os.getenv(
-    "OPENAI_BASE_URL",
-    "https://models.inference.ai.azure.com"
-)
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://models.inference.ai.azure.com")
 
 # Use whatever model is available (you can change later)
-OPENAI_MODEL = os.getenv(
-    "OPENAI_MODEL",
-    "gpt-5-mini"
-)
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,https://file-intake-processing-service.vercel.app",
+    ).split(",")
+    if origin.strip()
+]

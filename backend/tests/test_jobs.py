@@ -1,7 +1,5 @@
-from fastapi.testclient import TestClient
-
 from app.main import app
-
+from fastapi.testclient import TestClient
 
 VALID_CSV = (
     b"customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date\n"
@@ -39,7 +37,7 @@ def test_list_jobs_empty() -> None:
         response = client.get("/api/v1/jobs")
 
     assert response.status_code == 200
-    assert response.json() == {"jobs": []}
+    assert response.json() == {"jobs": [], "total": 0, "page": 1, "page_size": 10}
 
 
 def test_get_job_by_id() -> None:
@@ -75,7 +73,9 @@ def test_download_cleaned_file() -> None:
 
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
-    assert "customer_id,email,country,signup_date,order_amount,currency" in response.text
+    assert (
+        "customer_id,email,country,signup_date,order_amount,currency" in response.text
+    )
     assert "CUST-001,alice@example.com,DE,2026-04-01,125.50,EUR" in response.text
 
 

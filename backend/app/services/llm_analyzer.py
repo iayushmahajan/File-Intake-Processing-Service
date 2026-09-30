@@ -1,9 +1,10 @@
 import json
 from typing import Any, Dict
 
-from openai import OpenAI
-
 from app.core.config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
+from app.schemas.ai import AIReport
+from openai import OpenAI
+from pydantic import ValidationError
 
 
 def _fallback_error(message: str) -> Dict[str, Any]:
@@ -18,11 +19,6 @@ def generate_ai_analysis(summary: Dict[str, Any]) -> Dict[str, Any]:
         return _fallback_error(
             "LLM not configured. Set OPENAI_API_KEY to enable AI analysis."
         )
-
-    client = OpenAI(
-        api_key=OPENAI_API_KEY,
-        base_url=OPENAI_BASE_URL,
-    )
 
     user_prompt = (
         "You are a senior data quality analyst reviewing a small customer "
@@ -48,6 +44,13 @@ def generate_ai_analysis(summary: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     try:
+        client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_BASE_URL,
+            timeout=30,
+            max_retries=1,
+        )
+
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
@@ -68,17 +71,17 @@ def generate_ai_analysis(summary: Dict[str, Any]) -> Dict[str, Any]:
         content = response.choices[0].message.content or ""
 
         try:
-            parsed_report = json.loads(content)
+            parsed_report = AIReport.model_validate_json(content).model_dump()
             return {
                 "report": parsed_report,
-                "raw_response": content,
             }
-        except json.JSONDecodeError:
+        except (ValidationError, ValueError):
             return {
                 "report": None,
-                "raw_response": content,
-                "error": "AI response was returned, but it was not valid JSON.",
+                "error": "AI response did not match the expected report schema.",
             }
 
-    except Exception as error:
-        return _fallback_error(f"AI analysis failed: {str(error)}")
+    except Exception:
+        return _fallback_error(
+            "AI provider unavailable. Core validation results are unaffected."
+        )

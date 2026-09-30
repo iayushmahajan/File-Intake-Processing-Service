@@ -1,7 +1,5 @@
-from fastapi.testclient import TestClient
-
 from app.main import app
-
+from fastapi.testclient import TestClient
 
 VALID_CSV = (
     b"customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date\n"

@@ -1,6 +1,5 @@
 from app.services.validator import validate_csv_columns, validate_row
 
-
 VALID_COLUMNS = [
     "customer_id",
     "email",

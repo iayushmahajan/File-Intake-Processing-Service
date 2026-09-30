@@ -1,423 +1,272 @@
 import { useEffect, useState } from "react";
+import { api, downloadUrl } from "../../lib/api";
+import type { AiReport, JobDetail } from "../../types/jobs";
 import { SectionCard } from "../layout/SectionCard";
-import type { UploadResult } from "./UploadPanel";
+import { AnalysisView } from "../analytics/AnalysisView";
 
-type ResultsPanelProps = {
-    result: UploadResult | null;
-    isLoading?: boolean;
-};
-
-type AiReport = {
-    quality_score: number;
-    severity: "low" | "medium" | "high";
-    executive_summary: string;
-    key_issues: string[];
-    recommended_actions: string[];
-    business_impact: string;
-};
-
-type AiAnalysisResponse = {
-    report?: AiReport | null;
-    raw_response?: string;
-    error?: string;
-};
-
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-const VALIDATION_RULES = [
-    "customer_id is required",
-    "email must be valid",
-    "country must be one of DE, FR, IN, US, GB",
-    "currency must be one of EUR, USD, INR",
-    "payment_method must be card, paypal, or bank_transfer",
-    "order_status must be completed, pending, or cancelled",
-    "quantity must be greater than 0",
-    "discount_percent must be between 0 and 100",
-    "country and currency must match business rules",
-];
-
-function getPercentage(value: number, total: number) {
-    if (total === 0) return 0;
-    return Math.round((value / total) * 100);
-}
-
-function getSeverityClass(severity?: string) {
-    if (severity === "high") {
-        return "border-red-500/20 bg-red-500/10 text-red-300";
+export function ResultsPanel({
+  jobId,
+  isLoading = false,
+}: {
+  jobId: number | null;
+  isLoading?: boolean;
+}) {
+  const [job, setJob] = useState<JobDetail | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    setJob(null);
+    setError("");
+    if (jobId === null) {
+      setLoading(false);
+      return;
     }
-
-    if (severity === "medium") {
-        return "border-yellow-500/20 bg-yellow-500/10 text-yellow-200";
-    }
-
-    return "border-green-500/20 bg-green-500/10 text-green-300";
-}
-
-function downloadAiReport(filename: string, report: AiReport) {
-    const markdown = `# AI Data Quality Report
-
-## File
-${filename}
-
-## Quality Score
-${report.quality_score}/100
-
-## Severity
-${report.severity.toUpperCase()}
-
-## Executive Summary
-${report.executive_summary}
-
-## Key Issues
-${report.key_issues.map((issue) => `- ${issue}`).join("\n")}
-
-## Recommended Actions
-${report.recommended_actions.map((action) => `- ${action}`).join("\n")}
-
-## Business Impact
-${report.business_impact}
-`;
-
-    const blob = new Blob([markdown], {
-        type: "text/markdown;charset=utf-8",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    const safeFilename = filename.replace(/\.csv$/i, "");
-    link.href = url;
-    link.download = `${safeFilename}_ai_report.md`;
-    link.click();
-
-    URL.revokeObjectURL(url);
-}
-
-export function ResultsPanel({ result, isLoading = false }: ResultsPanelProps) {
-    const summary = result?.processing_summary;
-
-    const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResponse | null>(null);
-    const [isAiLoading, setIsAiLoading] = useState(false);
-
-    const totalRows = summary?.total_rows ?? 0;
-    const validRows = summary?.valid_rows ?? 0;
-    const invalidRows = summary?.invalid_rows ?? 0;
-
-    const validPercentage = getPercentage(validRows, totalRows);
-    const invalidPercentage = getPercentage(invalidRows, totalRows);
-
-    const hasResult = Boolean(summary);
-    const isPerfect = hasResult && invalidRows === 0;
-    const hasErrors = hasResult && invalidRows > 0;
-
-    const errorBreakdown = Object.entries(summary?.error_breakdown ?? {});
-
-    useEffect(() => {
-        async function generateAiAnalysis(jobId: number) {
-            try {
-                setIsAiLoading(true);
-                setAiAnalysis(null);
-
-                const response = await fetch(
-                    `${API_BASE_URL}/api/v1/jobs/${jobId}/ai-analysis`,
-                    {
-                        method: "POST",
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error("Could not generate AI analysis.");
-                }
-
-                const data = (await response.json()) as AiAnalysisResponse;
-                setAiAnalysis(data);
-            } catch (error) {
-                setAiAnalysis({
-                    error:
-                        error instanceof Error ? error.message : "Something went wrong.",
-                });
-            } finally {
-                setIsAiLoading(false);
-            }
-        }
-
-        if (result?.job_id) {
-            generateAiAnalysis(result.job_id);
-        } else {
-            setAiAnalysis(null);
-        }
-    }, [result?.job_id]);
-
-    const aiReport = aiAnalysis?.report ?? null;
-
-    return (
-        <SectionCard
-            title="Processing Summary"
-            description="Review validation results and AI-generated data quality analysis."
-        >
-            <div
-                className={`space-y-5 transition-all duration-500 ${hasResult ? "opacity-100" : "opacity-90"
-                    }`}
-            >
-                <div
-                    className={`rounded-xl border px-4 py-4 transition-all duration-500 ${isLoading
-                            ? "border-accent/30 bg-accent/10"
-                            : isPerfect
-                                ? "border-green-500/20 bg-green-500/10"
-                                : hasErrors
-                                    ? "border-yellow-500/20 bg-yellow-500/10"
-                                    : "border-borderSoft bg-surfaceSoft/50"
-                        }`}
-                >
-                    <p className="text-sm font-medium text-textMain">
-                        {isLoading
-                            ? "Processing file..."
-                            : result
-                                ? result.message
-                                : "No results yet"}
-                    </p>
-
-                    <p className="mt-1 text-sm text-textMuted">
-                        {isLoading
-                            ? "The uploaded CSV is being validated, transformed, and analyzed."
-                            : result
-                                ? `Job #${result.job_id} created for ${result.original_filename}.`
-                                : "Once a file is uploaded, this area will show validation results and AI analysis."}
-                    </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
-                        <p className="text-xs uppercase tracking-wide text-textMuted">
-                            Total Rows
-                        </p>
-                        <p className="mt-2 text-2xl font-semibold text-textMain">
-                            {summary?.total_rows ?? "—"}
-                        </p>
-                    </div>
-
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
-                        <p className="text-xs uppercase tracking-wide text-textMuted">
-                            Valid Rows
-                        </p>
-                        <p className="mt-2 text-2xl font-semibold text-success">
-                            {summary?.valid_rows ?? "—"}
-                        </p>
-                    </div>
-
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
-                        <p className="text-xs uppercase tracking-wide text-textMuted">
-                            Invalid Rows
-                        </p>
-                        <p className="mt-2 text-2xl font-semibold text-danger">
-                            {summary?.invalid_rows ?? "—"}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-sm font-medium text-textMain">
-                                Valid vs Invalid Rows
-                            </p>
-                            <p className="mt-1 text-xs text-textMuted">
-                                {summary
-                                    ? `${validPercentage}% valid, ${invalidPercentage}% invalid`
-                                    : "Upload a CSV file to see the processing ratio."}
-                            </p>
-                        </div>
-
-                        {summary ? (
-                            <p
-                                className={`text-sm font-semibold ${isPerfect ? "text-success" : "text-textMain"
-                                    }`}
-                            >
-                                {validPercentage}%
-                            </p>
-                        ) : null}
-                    </div>
-
-                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-surfaceSoft">
-                        {summary ? (
-                            <div className="flex h-full w-full">
-                                <div
-                                    className="h-full bg-success transition-all duration-700"
-                                    style={{ width: `${validPercentage}%` }}
-                                />
-                                <div
-                                    className="h-full bg-danger transition-all duration-700"
-                                    style={{ width: `${invalidPercentage}%` }}
-                                />
-                            </div>
-                        ) : (
-                            <div className="h-full w-0 bg-success" />
-                        )}
-                    </div>
-                </div>
-
-                <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                    <p className="text-sm font-medium text-textMain">Validation Rules</p>
-
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {VALIDATION_RULES.map((rule) => (
-                            <div
-                                key={rule}
-                                className="rounded-lg border border-borderSoft bg-surfaceSoft/40 px-3 py-2 text-xs text-textMuted"
-                            >
-                                {rule}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {hasErrors ? (
-                    <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-4">
-                        <p className="text-sm font-medium text-textMain">Error Breakdown</p>
-                        <p className="mt-1 text-xs text-textMuted">
-                            Grouped by validation category from the uploaded CSV.
-                        </p>
-
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            {errorBreakdown.map(([category, count]) => (
-                                <div
-                                    key={category}
-                                    className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2"
-                                >
-                                    <span className="text-sm text-textMain">{category}</span>
-                                    <span className="text-sm font-semibold text-danger">
-                                        {count}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
-
-                <div className="rounded-xl border border-accent/20 bg-accent/10 px-4 py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-textMain">
-                                AI Data Quality Analysis
-                            </p>
-                            <p className="mt-1 text-xs text-textMuted">
-                                Automatically generated from validation results, file samples,
-                                and detected data issues.
-                            </p>
-                        </div>
-
-                        {aiReport && result ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                                <div
-                                    className={`rounded-full border px-3 py-1 text-xs font-medium ${getSeverityClass(
-                                        aiReport.severity
-                                    )}`}
-                                >
-                                    {aiReport.severity.toUpperCase()} · Score{" "}
-                                    {aiReport.quality_score}/100
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        downloadAiReport(result.original_filename, aiReport)
-                                    }
-                                    className="rounded-full border border-borderSoft px-3 py-1 text-xs font-medium text-textMain transition hover:border-accent"
-                                >
-                                    Download Report
-                                </button>
-                            </div>
-                        ) : null}
-                    </div>
-
-                    {isAiLoading ? (
-                        <div className="mt-4 rounded-lg border border-borderSoft bg-background/50 px-3 py-3 text-sm text-textMuted">
-                            Generating AI analysis...
-                        </div>
-                    ) : null}
-
-                    {aiAnalysis?.error ? (
-                        <div className="mt-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-3 text-sm text-yellow-200">
-                            {aiAnalysis.error}
-                        </div>
-                    ) : null}
-
-                    {aiReport ? (
-                        <div className="mt-4 space-y-4">
-                            <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
-                                <p className="text-xs uppercase tracking-wide text-textMuted">
-                                    Executive Summary
-                                </p>
-                                <p className="mt-2 text-sm leading-relaxed text-textMain">
-                                    {aiReport.executive_summary}
-                                </p>
-                            </div>
-
-                            <div className="grid gap-3 lg:grid-cols-2">
-                                <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
-                                    <p className="text-xs uppercase tracking-wide text-textMuted">
-                                        Key Issues
-                                    </p>
-
-                                    <div className="mt-2 space-y-2">
-                                        {aiReport.key_issues.map((issue) => (
-                                            <p key={issue} className="text-sm text-textMain">
-                                                • {issue}
-                                            </p>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
-                                    <p className="text-xs uppercase tracking-wide text-textMuted">
-                                        Recommended Actions
-                                    </p>
-
-                                    <div className="mt-2 space-y-2">
-                                        {aiReport.recommended_actions.map((action) => (
-                                            <p key={action} className="text-sm text-textMain">
-                                                • {action}
-                                            </p>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="rounded-lg border border-borderSoft bg-background/50 px-3 py-3">
-                                <p className="text-xs uppercase tracking-wide text-textMuted">
-                                    Business Impact
-                                </p>
-                                <p className="mt-2 text-sm leading-relaxed text-textMain">
-                                    {aiReport.business_impact}
-                                </p>
-                            </div>
-                        </div>
-                    ) : null}
-                </div>
-
-                {summary ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
-                            <p className="text-xs uppercase tracking-wide text-textMuted">
-                                Clean Output
-                            </p>
-                            <p className="mt-2 break-all text-sm text-textMain">
-                                {summary.cleaned_filename || "No clean file generated"}
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border border-borderSoft bg-background/40 px-4 py-3">
-                            <p className="text-xs uppercase tracking-wide text-textMuted">
-                                Error Report
-                            </p>
-                            <p className="mt-2 break-all text-sm text-textMain">
-                                {summary.error_filename}
-                            </p>
-                        </div>
-                    </div>
-                ) : null}
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await api<JobDetail>(`/api/v1/jobs/${jobId}`, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setJob(data);
+        if (data.status === "pending" || data.status === "processing")
+          timer = setTimeout(load, 1500);
+      } catch (failure) {
+        if (!controller.signal.aborted)
+          setError(
+            failure instanceof Error ? failure.message : "Could not load job.",
+          );
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [jobId, retry]);
+  return (
+    <SectionCard
+      title="Job workspace"
+      description="Persisted results, quality measurements and actionable exceptions."
+    >
+      {error && (
+        <div role="alert" className="notice-error">
+          {error}{" "}
+          <button
+            className="underline"
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {isLoading || (loading && !job) ? (
+        <div role="status" className="space-y-4 py-8">
+          <p className="text-sm text-textMuted">
+            {isLoading
+              ? "Uploading and processing your file…"
+              : "Loading job details…"}
+          </p>
+          <div className="h-20 animate-pulse rounded-xl bg-surfaceSoft" />
+          <p className="text-xs text-textMuted">
+            Results appear when validation and report generation finish.
+          </p>
+        </div>
+      ) : !job ? (
+        <div className="empty-state py-16">
+          <p className="mb-2 text-lg text-textMain">
+            Your next dataset, understood.
+          </p>
+          <p>Upload a CSV or open a historical job to inspect its quality.</p>
+          <p className="mt-3 text-xs">
+            12 required fields · Row-level validation · Downloadable reports
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">JOB #{job.id}</p>
+              <h2 className="mt-1 break-all text-lg font-medium">
+                {job.filename_original}
+              </h2>
+              <p className="mt-1 text-xs text-textMuted">
+                {job.file_size === null
+                  ? "Size unavailable"
+                  : `${(job.file_size / 1024).toFixed(1)} KB`}{" "}
+                ·{" "}
+                {job.duration_ms === null
+                  ? "Duration unavailable"
+                  : `${job.duration_ms} ms`}{" "}
+                ·{" "}
+                {new Date(
+                  job.created_at.endsWith("Z")
+                    ? job.created_at
+                    : job.created_at + "Z",
+                ).toLocaleString()}
+              </p>
             </div>
-        </SectionCard>
+            <span
+              className={`status-badge ${job.status === "failed" ? "text-red-300" : "text-emerald-300"}`}
+            >
+              {job.status}
+            </span>
+          </div>
+          {job.error_message && (
+            <p className="notice-error mt-4" role="alert">
+              {job.error_message}
+            </p>
+          )}
+          <div className="my-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {[
+              [
+                "Quality score",
+                job.status === "completed"
+                  ? (job.analysis?.quality?.score ?? "—")
+                  : "—",
+              ],
+              ["Total records", job.total_rows],
+              ["Accepted", job.valid_rows],
+              ["Rejected", job.invalid_rows],
+              [
+                "Validation issues",
+                job.analysis?.validation_issue_count ??
+                  Object.values(job.error_breakdown).reduce((a, b) => a + b, 0),
+              ],
+              ["Anomaly signals", job.analysis?.anomaly_count ?? "—"],
+            ].map(([name, value]) => (
+              <div key={name} className="subcard">
+                <p className="text-xs text-textMuted">{name}</p>
+                <p className="mt-2 font-mono text-2xl font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["input", "Original CSV", job.filename_input_saved],
+                ["clean", "Cleaned CSV", job.filename_cleaned],
+                ["errors", "Error CSV", job.filename_error_report],
+              ] as const
+            ).map(
+              ([kind, title, filename]) =>
+                filename && (
+                  <a
+                    key={kind}
+                    className="button-secondary"
+                    href={downloadUrl(job.id, kind)}
+                  >
+                    {title} ↓
+                  </a>
+                ),
+            )}
+          </div>
+          <AnalysisView key={job.id} job={job} />
+          <AiInsights key={`ai-${job.id}`} job={job} />
+        </>
+      )}
+    </SectionCard>
+  );
+}
+
+function AiInsights({ job }: { job: JobDetail }) {
+  const [report, setReport] = useState<AiReport | null>(job.ai_report);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const generate = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{
+        report: AiReport | null;
+        error: string | null;
+      }>(`/api/v1/jobs/${job.id}/ai-analysis`, { method: "POST" });
+      setReport(result.report);
+      setError(result.error ?? "");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "AI request failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const download = () => {
+    if (!report) return;
+    const text = `# AI interpretation — job ${job.id}\n\n${report.executive_summary}\n\n## Issues\n${report.key_issues.map((item) => `- ${item}`).join("\n")}\n\n## Actions\n${report.recommended_actions.map((item) => `- ${item}`).join("\n")}\n\n## Business impact\n${report.business_impact}\n`;
+    const url = URL.createObjectURL(
+      new Blob([text], { type: "text/markdown" }),
     );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `job-${job.id}-ai-report.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <section className="mt-6 border-t border-borderSoft pt-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium">
+            AI interpretation{" "}
+            <span className="text-xs text-textMuted">/ Optional</span>
+          </h3>
+          <p className="mt-1 text-xs text-textMuted">
+            Aggregates only. No raw records or customer identifiers are sent.
+            The platform score above is deterministic.
+          </p>
+        </div>
+        {!report && (
+          <button
+            className="button-secondary"
+            onClick={generate}
+            disabled={busy || job.status !== "completed"}
+          >
+            {busy ? "Generating…" : "Generate insights"}
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-amber-300">
+          {error}
+        </p>
+      )}
+      {report && (
+        <div className="mt-4 space-y-4 text-sm">
+          <p>{report.executive_summary}</p>
+          <p className="text-xs text-textMuted">
+            AI-assessed severity: {report.severity} · AI-assessed score:{" "}
+            {report.quality_score}/100
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <h4 className="mb-2 font-medium">Key issues</h4>
+              <ul className="list-inside list-disc space-y-2 text-textMuted">
+                {report.key_issues.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-2 font-medium">Recommended actions</h4>
+              <ul className="list-inside list-disc space-y-2 text-textMuted">
+                {report.recommended_actions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="text-textMuted">{report.business_impact}</p>
+          <button className="button-secondary" onClick={download}>
+            Download interpretation ↓
+          </button>
+        </div>
+      )}
+    </section>
+  );
 }

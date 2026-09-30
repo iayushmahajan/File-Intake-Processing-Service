@@ -9,6 +9,7 @@ from app.services.analyzer import analyze_processed_data
 from app.services.report_generator import write_cleaned_csv, write_error_csv
 from app.services.transformer import transform_row
 from app.services.validator import (
+    REQUIRED_COLUMNS,
     get_error_category,
     validate_csv_columns,
     validate_row,
@@ -52,40 +53,12 @@ def sanitize_filename_stem(value: str) -> str:
     return sanitized or "processed_file"
 
 
-def get_available_output_path(filename: str) -> Path:
-    """
-    Prevent overwriting if the same file is uploaded multiple times.
-    Example:
-    normal_demo_clean.csv
-    normal_demo_clean_2.csv
-    normal_demo_clean_3.csv
-    """
-    output_path = OUTPUT_DIR / filename
-
-    if not output_path.exists():
-        return output_path
-
-    stem = output_path.stem
-    suffix = output_path.suffix
-
-    counter = 2
-
-    while True:
-        candidate = OUTPUT_DIR / f"{stem}_{counter}{suffix}"
-
-        if not candidate.exists():
-            return candidate
-
-        counter += 1
-
-
 def build_output_paths(input_path: Path) -> Tuple[str, Path, str, Path]:
-    readable_stem = sanitize_filename_stem(strip_saved_file_prefix(input_path))
-
-    cleaned_path = get_available_output_path(f"{readable_stem}_clean.csv")
-    error_path = get_available_output_path(f"{readable_stem}_errors.csv")
-
-    return cleaned_path.name, cleaned_path, error_path.name, error_path
+    # The input's UUID identifies this upload; no check-then-write allocation.
+    stem = sanitize_filename_stem(input_path.stem)
+    clean = OUTPUT_DIR / f"{stem}_clean.csv"
+    errors = OUTPUT_DIR / f"{stem}_errors.csv"
+    return clean.name, clean, errors.name, errors
 
 
 def process_csv_file(input_path: Path) -> Dict[str, object]:
@@ -96,6 +69,10 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
         extra={"input_path": str(input_path)},
     )
 
+    missing_cells = 0
+    seen_records: set[tuple] = set()
+    duplicate_records = 0
+    source_rows: list[int] = []
     valid_rows: List[Dict[str, str]] = []
     error_rows: List[Dict[str, str]] = []
     error_breakdown: Dict[str, int] = {}
@@ -104,8 +81,8 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
         input_path
     )
 
-    with input_path.open("r", newline="", encoding="utf-8") as csvfile:
-        reader = csv.DictReader(csvfile)
+    with input_path.open("r", newline="", encoding="utf-8-sig") as csvfile:
+        reader = csv.DictReader(csvfile, strict=True)
 
         columns_valid, column_errors = validate_csv_columns(reader.fieldnames)
 
@@ -135,9 +112,12 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
 
             analysis = analyze_processed_data(
                 valid_rows=[],
-                error_rows=header_error_rows,
+                error_rows=[],
                 error_breakdown=error_breakdown,
             )
+
+            analysis["validation_issue_count"] = len(column_errors)
+            analysis["error_preview"] = header_error_rows
 
             logger.warning(
                 "CSV header validation failed",
@@ -149,6 +129,8 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
             )
 
             return {
+                "status": "failed",
+                "error_message": "; ".join(column_errors),
                 "total_rows": 0,
                 "valid_rows": 0,
                 "invalid_rows": 0,
@@ -162,6 +144,18 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
 
         for row_number, row in enumerate(reader, start=2):
             errors = validate_row(row, row_number)
+            missing_cells += sum(
+                not (row.get(key) or "").strip() for key in REQUIRED_COLUMNS
+            )
+            if None in row or any(row.get(key) is None for key in REQUIRED_COLUMNS):
+                errors.append("CSV column count does not match header")
+            fingerprint = tuple(
+                (row.get(key) or "").strip().casefold() for key in REQUIRED_COLUMNS
+            )
+            if fingerprint in seen_records:
+                duplicate_records += 1
+                errors.append("duplicate record: identical required field values")
+            seen_records.add(fingerprint)
 
             if errors:
                 add_errors_to_breakdown(error_breakdown, errors)
@@ -186,6 +180,7 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
                 )
             else:
                 valid_rows.append(transform_row(row))
+                source_rows.append(row_number)
 
     write_cleaned_csv(cleaned_path, valid_rows)
     write_error_csv(error_path, error_rows)
@@ -197,6 +192,26 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
         error_rows=error_rows,
         error_breakdown=error_breakdown,
     )
+
+    from app.services.quality import calculate_quality
+
+    for anomaly in analysis["anomalies"]:
+        anomaly["row"] = source_rows[anomaly["row"] - 1]
+    analysis["quality"] = calculate_quality(
+        total_rows,
+        len(valid_rows),
+        missing_cells,
+        len(REQUIRED_COLUMNS),
+        duplicate_records,
+        len({item["row"] for item in analysis["anomalies"]}),
+    )
+    analysis["error_preview"] = error_rows[:100]
+    analysis["anomaly_count"] = len(analysis["anomalies"])
+    analysis["anomalies"] = analysis["anomalies"][:100]
+    analysis["validation_issue_count"] = sum(error_breakdown.values())
+    analysis["duplicate_records"] = duplicate_records
+    analysis["missing_cells"] = missing_cells
+    analysis["error_patterns"] = analysis["error_patterns"][:20]
 
     logger.info(
         "CSV processing completed",
@@ -212,6 +227,8 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
     )
 
     return {
+        "status": "completed" if total_rows else "failed",
+        "error_message": None if total_rows else "CSV contains no data records.",
         "total_rows": total_rows,
         "valid_rows": len(valid_rows),
         "invalid_rows": len(error_rows),

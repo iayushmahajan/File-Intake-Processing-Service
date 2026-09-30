@@ -5,8 +5,14 @@
 :root {
   color: #e5eefc;
   background: #0b1220;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -45,4 +51,57 @@ textarea {
 
 ::selection {
   background: rgba(96, 165, 250, 0.35);
+}
+@layer components {
+  .eyebrow {
+    @apply text-[10px] font-semibold tracking-[0.18em] text-textMuted;
+  }
+  .subcard {
+    @apply rounded-xl border border-borderSoft bg-background/50 p-4;
+  }
+  .button-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-borderSoft bg-surfaceSoft px-3 py-2 text-xs font-medium text-textMain hover:border-accentSoft disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .field {
+    @apply block w-full rounded-lg border border-borderSoft bg-background px-3 py-2.5 text-sm text-textMain;
+  }
+  .status-badge {
+    @apply inline-flex rounded-full border border-borderSoft bg-surfaceSoft px-2.5 py-1 text-xs capitalize;
+  }
+  .notice-error {
+    @apply rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200;
+  }
+  .empty-state {
+    @apply py-8 text-center text-sm text-textMuted;
+  }
+  .data-table {
+    @apply w-full text-left text-sm;
+  }
+  .data-table th {
+    @apply whitespace-nowrap border-b border-borderSoft px-3 py-3 text-xs font-medium text-textMuted;
+  }
+  .data-table td {
+    @apply border-b border-borderSoft/60 px-3 py-3;
+  }
+}
+body {
+  background: #0b1220;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

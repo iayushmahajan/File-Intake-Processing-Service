@@ -1,3 +1,5 @@
+import math
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Tuple
@@ -27,7 +29,12 @@ def validate_csv_columns(fieldnames: List[str] | None) -> Tuple[bool, List[str]]
     if fieldnames is None:
         return False, ["CSV file is missing a header row."]
 
-    missing_columns = [column for column in REQUIRED_COLUMNS if column not in fieldnames]
+    if len(fieldnames) != len(set(fieldnames)):
+        return False, ["CSV header contains duplicate column names."]
+
+    missing_columns = [
+        column for column in REQUIRED_COLUMNS if column not in fieldnames
+    ]
 
     if missing_columns:
         return False, [f"Missing required columns: {', '.join(missing_columns)}"]
@@ -60,7 +67,9 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
 
     if not email:
         errors.append("email is required")
-    elif "@" not in email or "." not in email.split("@")[-1]:
+    elif len(email) > 254 or not re.fullmatch(
+        r"[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+", email
+    ):
         errors.append("email must be valid")
 
     if not country:
@@ -81,7 +90,10 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
     else:
         try:
             amount = Decimal(order_amount_raw)
-            if amount < 0:
+            if not amount.is_finite() or not math.isfinite(float(amount)):
+                errors.append("invalid order_amount")
+                amount = None
+            elif amount < 0:
                 errors.append("negative order_amount")
         except InvalidOperation:
             errors.append("invalid order_amount")
@@ -109,9 +121,11 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
     else:
         try:
             quantity = int(quantity_raw)
-            if quantity <= 0:
+            if not math.isfinite(float(quantity)):
+                errors.append("invalid quantity")
+            elif quantity <= 0:
                 errors.append("quantity must be > 0")
-        except ValueError:
+        except (ValueError, OverflowError):
             errors.append("invalid quantity")
 
     if not discount_raw:
@@ -119,7 +133,7 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
     else:
         try:
             discount = Decimal(discount_raw)
-            if discount < 0 or discount > 100:
+            if not discount.is_finite() or discount < 0 or discount > 100:
                 errors.append("invalid discount_percent")
         except InvalidOperation:
             errors.append("invalid discount_percent")
@@ -132,8 +146,17 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
         except ValueError:
             errors.append("invalid last_login_date")
 
+    try:
+        if datetime.strptime(last_login_date, "%Y-%m-%d") < datetime.strptime(
+            signup_date, "%Y-%m-%d"
+        ):
+            errors.append("last_login_date precedes signup_date")
+    except ValueError:
+        pass
+
+    # Repeated customer IDs are legitimate across transactions; do not reject them.
     # Cross-field business rules
-    if country == "DE" and currency and currency != "EUR":
+    if country in {"DE", "FR"} and currency and currency != "EUR":
         errors.append("currency mismatch for country")
 
     if order_status == "completed" and amount is not None and amount == 0:
@@ -143,6 +166,14 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
 
 
 def get_error_category(error: str) -> str:
+    if "header" in error or "Missing required columns" in error:
+        return "CSV Header"
+    if "duplicate record" in error:
+        return "Duplicate Record"
+    if "column count" in error:
+        return "CSV Structure"
+    if "last_login_date" in error:
+        return "Last Login Date"
     if "customer_id" in error:
         return "Customer ID"
 

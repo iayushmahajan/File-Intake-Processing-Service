@@ -26,9 +26,9 @@ def transform_row(row: Dict[str, str]) -> Dict[str, str]:
     discount_percent = f"{Decimal(discount_raw):.2f}"
 
     last_login_date_raw = (row.get("last_login_date") or "").strip()
-    last_login_date = datetime.strptime(
-        last_login_date_raw, "%Y-%m-%d"
-    ).strftime("%Y-%m-%d")
+    last_login_date = datetime.strptime(last_login_date_raw, "%Y-%m-%d").strftime(
+        "%Y-%m-%d"
+    )
 
     return {
         "customer_id": customer_id,

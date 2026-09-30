@@ -1,55 +1,63 @@
 import { useRef, useState } from "react";
-import { HeroSection } from "./HeroSection";
 import { JobsPanel } from "../panels/JobsPanel";
 import { ResultsPanel } from "../panels/ResultsPanel";
-import { UploadPanel, type UploadResult } from "../panels/UploadPanel";
+import { UploadPanel } from "../panels/UploadPanel";
 
 export function AppShell() {
-    const [latestResult, setLatestResult] = useState<UploadResult | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
-
-    const resultsRef = useRef<HTMLDivElement | null>(null);
-
-    function scrollToResults() {
-        window.setTimeout(() => {
-            resultsRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            });
-        }, 100);
-    }
-
-    return (
-        <div className="min-h-screen">
-            <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
-                <HeroSection />
-
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-                    <div className="space-y-6">
-                        <UploadPanel
-                            onUploadStart={() => {
-                                setIsProcessing(true);
-                                scrollToResults();
-                            }}
-                            onUploadComplete={(result) => {
-                                setLatestResult(result);
-                                setIsProcessing(false);
-                                setJobsRefreshKey((current) => current + 1);
-                            }}
-                            onUploadError={() => setIsProcessing(false)}
-                        />
-
-                        <div ref={resultsRef} className="scroll-mt-6">
-                            <ResultsPanel result={latestResult} isLoading={isProcessing} />
-                        </div>
-                    </div>
-
-                    <div>
-                        <JobsPanel refreshKey={jobsRefreshKey} />
-                    </div>
-                </div>
-            </div>
+  const [jobId, setJobId] = useState<number | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  return (
+    <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-8">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-borderSoft pb-6">
+        <div>
+          <p className="eyebrow">DATA OPERATIONS / WORKSPACE</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            File Intake{" "}
+            <span className="text-textMuted">&amp; Data Quality</span>
+          </h1>
+          <p className="mt-2 text-sm text-textMuted">
+            Validate records. Understand exceptions. Deliver dependable data.
+          </p>
         </div>
-    );
+        <a className="button-secondary" href="#new-job">
+          + New processing job
+        </a>
+      </header>
+      <main className="space-y-6">
+        <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div id="new-job">
+            <UploadPanel
+              onUploadStart={() => setIsProcessing(true)}
+              onUploadError={() => setIsProcessing(false)}
+              onUploadComplete={(result) => {
+                setJobId(result.job_id);
+                setIsProcessing(false);
+                setRefreshKey((key) => key + 1);
+              }}
+            />
+          </div>
+          <div ref={resultsRef} className="min-w-0 scroll-mt-4">
+            <ResultsPanel jobId={jobId} isLoading={isProcessing} />
+          </div>
+        </div>
+        <JobsPanel
+          refreshKey={refreshKey}
+          selectedId={jobId}
+          onSelect={(id) => {
+            setJobId(id);
+            resultsRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }}
+        />
+      </main>
+      <footer className="py-8 text-xs text-textMuted">
+        Deterministic validation · Local file storage · Optional AI
+        interpretation
+      </footer>
+    </div>
+  );
 }

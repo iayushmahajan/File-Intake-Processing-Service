@@ -1,13 +1,15 @@
+import csv
 from datetime import datetime
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
 
 from app.core.db import get_session
 from app.core.logging import get_logger
-from app.models.processing_job import ProcessingJob
+from app.models.processing_job import JobAnalysis, ProcessingJob
 from app.schemas.job import UploadResponse
-from app.services.csv_processor import process_csv_file
+from app.services.csv_processor import build_output_paths, process_csv_file
 from app.utils.file_io import save_upload_file
 
 router = APIRouter(prefix="/api/v1/uploads", tags=["uploads"])
@@ -15,63 +17,76 @@ logger = get_logger(__name__)
 
 
 @router.post("", response_model=UploadResponse)
-def upload_csv(
-    file: UploadFile = File(...),
-    session: Session = Depends(get_session),
-) -> UploadResponse:
+def upload_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
     if not file.filename:
-        logger.warning("Upload rejected because no file name was provided")
-        raise HTTPException(status_code=400, detail="No file provided.")
-
+        raise HTTPException(400, "No file provided.")
     if not file.filename.lower().endswith(".csv"):
-        logger.warning(
-            "Upload rejected because file is not CSV",
-            extra={"upload_filename": file.filename},
-        )
-        raise HTTPException(status_code=400, detail="Only CSV files are allowed.")
-
-    logger.info(
-        "Upload request accepted",
-        extra={"upload_filename": file.filename},
-    )
-
+        raise HTTPException(400, "Only CSV files are allowed.")
     saved_filename, saved_path = save_upload_file(file)
-    processing_result = process_csv_file(saved_path)
-
     job = ProcessingJob(
-        filename_original=file.filename,
+        filename_original=file.filename.replace("\\", "/").split("/")[-1],
         filename_input_saved=saved_filename,
-        filename_cleaned=processing_result["cleaned_filename"],
-        filename_error_report=processing_result["error_filename"],
-        status="completed",
-        total_rows=processing_result["total_rows"],
-        valid_rows=processing_result["valid_rows"],
-        invalid_rows=processing_result["invalid_rows"],
-        error_message=None,
-        processed_at=datetime.utcnow(),
+        filename_cleaned="",
+        filename_error_report="",
+        status="pending",
     )
-
     session.add(job)
     session.commit()
     session.refresh(job)
-
-    logger.info(
-        "Processing job created",
-        extra={
-            "job_id": job.id,
-            "original_filename": file.filename,
-            "saved_filename": saved_filename,
-            "total_rows": processing_result["total_rows"],
-            "valid_rows": processing_result["valid_rows"],
-            "invalid_rows": processing_result["invalid_rows"],
-        },
+    started = perf_counter()
+    job.status = "processing"
+    session.add(job)
+    session.commit()
+    try:
+        result = process_csv_file(saved_path)
+        job.status = result["status"]
+        job.error_message = result["error_message"]
+        job.filename_cleaned = result["cleaned_filename"]
+        job.filename_error_report = result["error_filename"]
+        job.total_rows = result["total_rows"]
+        job.valid_rows = result["valid_rows"]
+        job.invalid_rows = result["invalid_rows"]
+    except Exception as error:
+        logger.exception("CSV processing failed", extra={"job_id": job.id})
+        _, clean_path, _, error_path = build_output_paths(saved_path)
+        clean_path.unlink(missing_ok=True)
+        error_path.unlink(missing_ok=True)
+        job.status = "failed"
+        job.error_message = (
+            "The file must be valid UTF-8 CSV with correctly quoted fields."
+            if isinstance(error, (UnicodeError, csv.Error))
+            else "Processing failed. Review the CSV format or contact the operator."
+        )
+        result = dict(
+            total_rows=0,
+            valid_rows=0,
+            invalid_rows=0,
+            cleaned_filename="",
+            error_filename="",
+            error_breakdown={},
+            analysis={},
+        )
+    session.add(
+        JobAnalysis(
+            job_id=job.id,
+            file_size=saved_path.stat().st_size,
+            duration_ms=round((perf_counter() - started) * 1000),
+            analysis=result["analysis"],
+            error_breakdown=result["error_breakdown"],
+        )
     )
-
+    job.processed_at = datetime.utcnow()
+    session.add(job)
+    session.commit()
+    session.refresh(job)
     return UploadResponse(
-        message="File uploaded and processed successfully.",
-        original_filename=file.filename,
+        status=job.status,
+        error_message=job.error_message,
+        message="File uploaded and processed successfully."
+        if job.status == "completed"
+        else "File processing failed.",
+        original_filename=job.filename_original,
         saved_filename=saved_filename,
-        saved_path=str(saved_path),
-        processing_summary=processing_result,
+        processing_summary=result,
         job_id=job.id,
     )
