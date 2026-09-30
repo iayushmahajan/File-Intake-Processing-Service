@@ -1,6 +1,6 @@
 # Upgrade checkpoint — 2026-09-30
 
-This is a verified implementation checkpoint, not a claim that every requested future architecture change is finished. No Git commit or deployment to an external account was made. Existing development SQLite data was not used by tests or migrated during verification.
+This is a verified implementation checkpoint, not a claim that every requested future architecture change is finished. The completed upgrade is preserved in commit `db04fb4` (already present when this continuation began). No external deployment was made. Existing development SQLite data was not used by tests or migrated during verification.
 
 ## Implemented
 
@@ -69,3 +69,7 @@ No live AI provider calls were made. AI integration was verified with stubs, pri
 - Enforced aggregate-only AI inputs and validated/persisted model responses.
 - Added isolated API, migration, component and browser regression tests.
 - Verified a reproducible Docker Compose deployment and corrected an initialization readiness race.
+
+## Async phase starting baseline
+
+The working tree and diff were clean on inspection. Reverification before this phase: 36 backend tests, 7 frontend tests, and the TypeScript/Vite build passed. This record preserves the completed upgrade before asynchronous changes; existing commit history is not rewritten.
