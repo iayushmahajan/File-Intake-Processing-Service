@@ -1,23 +1,20 @@
-import csv
-from datetime import datetime
-from time import perf_counter
-
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.core.logging import get_logger
-from app.models.processing_job import JobAnalysis, ProcessingJob
+from app.models.processing_job import JobAnalysis, JobExecution, ProcessingJob
 from app.schemas.job import UploadResponse
-from app.services.csv_processor import build_output_paths, process_csv_file
 from app.utils.file_io import save_upload_file
 
 router = APIRouter(prefix="/api/v1/uploads", tags=["uploads"])
-logger = get_logger(__name__)
 
 
-@router.post("", response_model=UploadResponse)
-def upload_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
+@router.post("", response_model=UploadResponse, status_code=202)
+def upload_csv(
+    response: Response,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
     if not file.filename:
         raise HTTPException(400, "No file provided.")
     if not file.filename.lower().endswith(".csv"):
@@ -30,63 +27,31 @@ def upload_csv(file: UploadFile = File(...), session: Session = Depends(get_sess
         filename_error_report="",
         status="pending",
     )
-    session.add(job)
-    session.commit()
-    session.refresh(job)
-    started = perf_counter()
-    job.status = "processing"
-    session.add(job)
-    session.commit()
+    committing = False
     try:
-        result = process_csv_file(saved_path)
-        job.status = result["status"]
-        job.error_message = result["error_message"]
-        job.filename_cleaned = result["cleaned_filename"]
-        job.filename_error_report = result["error_filename"]
-        job.total_rows = result["total_rows"]
-        job.valid_rows = result["valid_rows"]
-        job.invalid_rows = result["invalid_rows"]
-    except Exception as error:
-        logger.exception("CSV processing failed", extra={"job_id": job.id})
-        _, clean_path, _, error_path = build_output_paths(saved_path)
-        clean_path.unlink(missing_ok=True)
-        error_path.unlink(missing_ok=True)
-        job.status = "failed"
-        job.error_message = (
-            "The file must be valid UTF-8 CSV with correctly quoted fields."
-            if isinstance(error, (UnicodeError, csv.Error))
-            else "Processing failed. Review the CSV format or contact the operator."
-        )
-        result = dict(
-            total_rows=0,
-            valid_rows=0,
-            invalid_rows=0,
-            cleaned_filename="",
-            error_filename="",
-            error_breakdown={},
-            analysis={},
-        )
-    session.add(
-        JobAnalysis(
-            job_id=job.id,
-            file_size=saved_path.stat().st_size,
-            duration_ms=round((perf_counter() - started) * 1000),
-            analysis=result["analysis"],
-            error_breakdown=result["error_breakdown"],
-        )
-    )
-    job.processed_at = datetime.utcnow()
-    session.add(job)
-    session.commit()
+        session.add(job)
+        session.flush()
+        session.add(JobAnalysis(job_id=job.id, file_size=saved_path.stat().st_size))
+        session.add(JobExecution(job_id=job.id))
+        # One transaction records the job AND dispatch intent. The request never
+        # waits for Redis or runs CSV processing, even when infrastructure is down.
+        committing = True
+        session.commit()
+    except Exception:
+        session.rollback()
+        # A lost commit acknowledgement may still mean the job was persisted.
+        # Keep the input in that case; an orphan is safer than a broken job.
+        if not committing:
+            saved_path.unlink(missing_ok=True)
+        raise
     session.refresh(job)
+    status_url = f"/api/v1/jobs/{job.id}"
+    response.headers["Location"] = status_url
     return UploadResponse(
-        status=job.status,
-        error_message=job.error_message,
-        message="File uploaded and processed successfully."
-        if job.status == "completed"
-        else "File processing failed.",
+        status="pending",
+        message="Upload accepted for background processing.",
         original_filename=job.filename_original,
         saved_filename=saved_filename,
-        processing_summary=result,
         job_id=job.id,
+        status_url=status_url,
     )

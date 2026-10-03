@@ -1,0 +1,4 @@
+customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date
+DEMO-101,alex@example.com,DE,2026-04-01,125.50,EUR,card,completed,books,2,10,2026-04-10
+DEMO-101,invalid-email,DE,2026-04-01,125.50,USD,card,completed,books,2,10,2026-03-01
+DEMO-103,lee@example.com,IN,2026-04-01,500,INR,bank_transfer,completed,clothing,20,50,2026-04-10

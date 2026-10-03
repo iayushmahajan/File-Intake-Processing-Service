@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isActive, statusClass } from "../../lib/job-state";
 import { api, downloadUrl } from "../../lib/api";
 import type { AiReport, JobDetail } from "../../types/jobs";
 import { SectionCard } from "../layout/SectionCard";
@@ -7,9 +8,11 @@ import { AnalysisView } from "../analytics/AnalysisView";
 export function ResultsPanel({
   jobId,
   isLoading = false,
+  onTerminal,
 }: {
   jobId: number | null;
   isLoading?: boolean;
+  onTerminal?: () => void;
 }) {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [error, setError] = useState("");
@@ -24,6 +27,7 @@ export function ResultsPanel({
     }
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    let active = true;
     const load = async () => {
       setLoading(true);
       try {
@@ -32,13 +36,17 @@ export function ResultsPanel({
         });
         if (controller.signal.aborted) return;
         setJob(data);
-        if (data.status === "pending" || data.status === "processing")
-          timer = setTimeout(load, 1500);
+        setError("");
+        active = isActive(data.status);
+        if (active) timer = setTimeout(load, 1500);
+        else onTerminal?.();
       } catch (failure) {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          if (active) timer = setTimeout(load, 3000);
           setError(
             failure instanceof Error ? failure.message : "Could not load job.",
           );
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -48,7 +56,7 @@ export function ResultsPanel({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [jobId, retry]);
+  }, [jobId, retry, onTerminal]);
   return (
     <SectionCard
       title="Job workspace"
@@ -68,9 +76,7 @@ export function ResultsPanel({
       {isLoading || (loading && !job) ? (
         <div role="status" className="space-y-4 py-8">
           <p className="text-sm text-textMuted">
-            {isLoading
-              ? "Uploading and processing your file…"
-              : "Loading job details…"}
+            {isLoading ? "Uploading your file…" : "Loading job details…"}
           </p>
           <div className="h-20 animate-pulse rounded-xl bg-surfaceSoft" />
           <p className="text-xs text-textMuted">
@@ -100,8 +106,8 @@ export function ResultsPanel({
                   ? "Size unavailable"
                   : `${(job.file_size / 1024).toFixed(1)} KB`}{" "}
                 ·{" "}
-                {job.duration_ms === null
-                  ? "Duration unavailable"
+                {isActive(job.status) || job.duration_ms === null
+                  ? "Processing duration available on completion"
                   : `${job.duration_ms} ms`}{" "}
                 ·{" "}
                 {new Date(
@@ -111,9 +117,7 @@ export function ResultsPanel({
                 ).toLocaleString()}
               </p>
             </div>
-            <span
-              className={`status-badge ${job.status === "failed" ? "text-red-300" : "text-emerald-300"}`}
-            >
+            <span className={`status-badge ${statusClass(job.status)}`}>
               {job.status}
             </span>
           </div>
@@ -122,52 +126,90 @@ export function ResultsPanel({
               {job.error_message}
             </p>
           )}
-          <div className="my-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {[
-              [
-                "Quality score",
-                job.status === "completed"
-                  ? (job.analysis?.quality?.score ?? "—")
-                  : "—",
-              ],
-              ["Total records", job.total_rows],
-              ["Accepted", job.valid_rows],
-              ["Rejected", job.invalid_rows],
-              [
-                "Validation issues",
-                job.analysis?.validation_issue_count ??
-                  Object.values(job.error_breakdown).reduce((a, b) => a + b, 0),
-              ],
-              ["Anomaly signals", job.analysis?.anomaly_count ?? "—"],
-            ].map(([name, value]) => (
-              <div key={name} className="subcard">
-                <p className="text-xs text-textMuted">{name}</p>
-                <p className="mt-2 font-mono text-2xl font-semibold">{value}</p>
+          {isActive(job.status) ? (
+            <section
+              role="status"
+              aria-live="polite"
+              className="subcard my-5 space-y-3"
+            >
+              <h3 className="font-medium">
+                {job.status === "pending"
+                  ? "Waiting for dispatch"
+                  : job.status === "queued"
+                    ? "Queued for a worker"
+                    : "Processing your CSV"}
+              </h3>
+              <ol
+                className="flex flex-wrap gap-4 text-xs text-textMuted"
+                aria-label="Processing lifecycle"
+              >
+                <li>1. Upload accepted</li>
+                <li>2. Queued</li>
+                <li>3. Processing</li>
+                <li>4. Results ready</li>
+              </ol>
+              <p className="text-sm text-textMuted">
+                {job.status === "processing"
+                  ? `Validation, normalization and analysis are running (attempt ${job.attempts ?? 1}).`
+                  : "The file is safely stored. This page will update automatically when a worker completes the job."}{" "}
+                You can refresh or return through processing history.
+              </p>
+            </section>
+          ) : (
+            <>
+              <div className="my-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  [
+                    "Quality score",
+                    job.status === "completed"
+                      ? (job.analysis?.quality?.score ?? "—")
+                      : "—",
+                  ],
+                  ["Total records", job.total_rows],
+                  ["Accepted", job.valid_rows],
+                  ["Rejected", job.invalid_rows],
+                  [
+                    "Validation issues",
+                    job.analysis?.validation_issue_count ??
+                      Object.values(job.error_breakdown).reduce(
+                        (a, b) => a + b,
+                        0,
+                      ),
+                  ],
+                  ["Anomaly signals", job.analysis?.anomaly_count ?? "—"],
+                ].map(([name, value]) => (
+                  <div key={name} className="subcard">
+                    <p className="text-xs text-textMuted">{name}</p>
+                    <p className="mt-2 font-mono text-2xl font-semibold">
+                      {value}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["input", "Original CSV", job.filename_input_saved],
-                ["clean", "Cleaned CSV", job.filename_cleaned],
-                ["errors", "Error CSV", job.filename_error_report],
-              ] as const
-            ).map(
-              ([kind, title, filename]) =>
-                filename && (
-                  <a
-                    key={kind}
-                    className="button-secondary"
-                    href={downloadUrl(job.id, kind)}
-                  >
-                    {title} ↓
-                  </a>
-                ),
-            )}
-          </div>
-          <AnalysisView key={job.id} job={job} />
-          <AiInsights key={`ai-${job.id}`} job={job} />
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["input", "Original CSV", job.filename_input_saved],
+                    ["clean", "Cleaned CSV", job.filename_cleaned],
+                    ["errors", "Error CSV", job.filename_error_report],
+                  ] as const
+                ).map(
+                  ([kind, title, filename]) =>
+                    filename && (
+                      <a
+                        key={kind}
+                        className="button-secondary"
+                        href={downloadUrl(job.id, kind)}
+                      >
+                        {title} ↓
+                      </a>
+                    ),
+                )}
+              </div>
+              <AnalysisView key={job.id} job={job} />
+              <AiInsights key={`ai-${job.id}`} job={job} />
+            </>
+          )}
         </>
       )}
     </SectionCard>

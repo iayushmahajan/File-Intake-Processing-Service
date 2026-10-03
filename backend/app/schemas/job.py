@@ -1,21 +1,12 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Literal, Optional
 
 from app.schemas.ai import AIReport
 from app.schemas.analysis import AnalysisResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
-JobStatus = Literal["pending", "processing", "completed", "failed"]
-
-
-class ProcessingSummaryResponse(BaseModel):
-    total_rows: int
-    valid_rows: int
-    invalid_rows: int
-    cleaned_filename: str
-    error_filename: str
-    error_breakdown: dict[str, int] = Field(default_factory=dict)
-    analysis: AnalysisResponse = Field(default_factory=AnalysisResponse)
+JobStatus = Literal["pending", "queued", "processing", "completed", "failed"]
 
 
 class UploadResponse(BaseModel):
@@ -24,8 +15,8 @@ class UploadResponse(BaseModel):
     message: str
     original_filename: str
     saved_filename: str
-    processing_summary: ProcessingSummaryResponse
     job_id: int
+    status_url: str
 
 
 class JobResponse(BaseModel):
@@ -42,7 +33,19 @@ class JobResponse(BaseModel):
     invalid_rows: int
     error_message: Optional[str]
     created_at: datetime
-    processed_at: datetime
+    processed_at: datetime | None
+
+    @field_serializer("filename_cleaned", "filename_error_report")
+    def public_output_name(self, value: str) -> str:
+        # Downloads resolve storage paths server-side using the job ID.
+        # Attempt tokens and directory organization are internal details.
+        return Path(value).name if value else ""
+
+    @model_validator(mode="after")
+    def hide_unfinished_timestamp(self):
+        if self.status in {"pending", "queued", "processing"}:
+            self.processed_at = None
+        return self
 
 
 class JobListResponse(BaseModel):
@@ -55,6 +58,7 @@ class JobListResponse(BaseModel):
 
 
 class JobDetailResponse(JobResponse):
+    attempts: int = 0
     file_size: int | None = None
     duration_ms: int | None = None
     analysis: AnalysisResponse | None = None

@@ -1,4 +1,51 @@
-# Upgrade checkpoint — 2026-09-30
+# Upgrade checkpoint
+
+## Current async phase — 2026-10-02
+
+The original analytical upgrade was preserved in `db04fb4`, followed by checkpoint commit `85aa613`. The sections below the historical divider describe that earlier synchronous baseline, not the current architecture.
+
+### Implemented
+
+- HTTP 202 upload acceptance with atomic persistence of job, metadata and dispatch intent.
+- Redis/Celery execution, a database-backed dispatcher, explicit pending/queued/processing/completed/failed states and worker-owned database sessions.
+- Atomic claims, bounded publication/execution retries, queue timeouts, expired-lease recovery, attempt-specific files and guarded result publication.
+- Polling and refresh continuity in React, terminal-state analytics and history updates, safe downloads using public basenames.
+- Additive migration 0002, PostgreSQL/SQLite compatibility and preserved historical analytics/AI reports.
+- Environment-driven Compose broker configuration; corrected async smoke and real-stack verification scripts; added integration CI job.
+- Updated README, architecture/lifecycle/troubleshooting documentation and frontend test instructions. README screenshots removed as requested.
+
+### Current verification
+
+- `backend/.venv/bin/python -m pytest backend/tests -q`: **61 passed**, including SQLite migration preservation and ambiguous upload/worker commit and post-commit timeout tests.
+- `npm exec --yes --package=pnpm@10.32.1 -- pnpm --dir frontend test`: **10 passed**.
+- `npm exec --yes --package=pnpm@10.32.1 -- pnpm --dir frontend build`: **passed**.
+- `backend/.venv/bin/python -m pip check`: **passed**.
+- Ruff checks on changed Python implementation/test scripts: **passed**.
+- `git diff --check`: **passed** at review; repeat after final documentation updates.
+- `docker compose config --quiet`: **passed**. The development API, PostgreSQL, Redis, worker and dispatcher all became healthy.
+- `DOCKER_CONFIG=/tmp/intake-docker-client npm exec --yes --package=pnpm@10.32.1 -- pnpm --dir frontend test:e2e`: **2 passed** (21.6 seconds), using real Redis/Celery and isolated SQLite/files.
+- `DOCKER_CONFIG=/tmp/intake-docker-client backend/.venv/bin/python scripts/verify_async_stack.py`: all assertions **passed**: acceptance, queued state, API restart, broker message loss, duplicate delivery, worker-child SIGKILL recovery, invalid CSV, Redis outage, missing-output 404, PostgreSQL search/history, migration `0002` and the asynchronous API smoke test. Disposable project: `intake-verify-009b4312`; diagnostics: `/tmp/intake-async-verify-0l82nbcm`.
+- Docker Desktop was started by the user. Its Windows credential helper still fails under this WSL session; public-image builds used a temporary Docker client config containing `{}` without changing the user's Docker configuration.
+- Remote GitHub Actions execution has not been observed; the integration job is configured, not claimed as remotely passed.
+
+### Repeat integration verification
+
+```bash
+docker compose config --quiet
+backend/.venv/bin/python scripts/verify_async_stack.py
+npm exec --yes --package=pnpm@10.32.1 -- pnpm --dir frontend test:e2e
+git diff --check
+```
+
+These commands use disposable verification resources; do not delete or reset development data. The verifier also runs the standalone asynchronous API smoke test. If the Windows credential helper fails, prefix Docker-dependent commands with `DOCKER_CONFIG=/tmp/intake-docker-client` after creating that directory with an empty JSON `config.json`. Verification records belong here; README remains focused on the project and usage.
+
+### Remaining product limitations
+
+At-least-once delivery with guarded commits is not exactly-once processing. Recovery depends on restored infrastructure and shared storage. Inputs/outputs and the relational database require coordinated backups. Orphan-file cleanup, request-level upload idempotency, authentication, retention, fully streaming analytics and server-side ranged previews remain outside this phase. SQLite is for single-worker development; PostgreSQL is the multi-process configuration. No live AI provider call is required or made by verification.
+
+---
+
+## Upgrade checkpoint — 2026-09-30
 
 This is a verified implementation checkpoint, not a claim that every requested future architecture change is finished. The completed upgrade is preserved in commit `db04fb4` (already present when this continuation began). No external deployment was made. Existing development SQLite data was not used by tests or migrated during verification.
 

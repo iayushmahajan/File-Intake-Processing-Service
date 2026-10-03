@@ -13,4 +13,4 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`VITE_API_BASE_URL` configures the API. Browser tests require `backend/.venv` and use isolated temporary backend storage. Shared types live in `src/types/jobs.ts`; `src/lib/api.ts` centralizes HTTP configuration. Papa Parse handles quoted multiline CSV previews.
+`VITE_API_BASE_URL` configures the API. Browser tests require `backend/.venv`, Docker and the Chromium Playwright browser. The runner starts a disposable Redis container plus API, Celery worker and dispatcher processes with temporary SQLite/storage. Ports 8011 and 5174 must be free. No AI key is required. Shared types live in `src/types/jobs.ts`; `src/lib/api.ts` centralizes HTTP configuration. Papa Parse handles quoted multiline CSV previews.

@@ -1,4 +1,5 @@
 from app.main import app
+from app.tasks import process_job_task
 from fastapi.testclient import TestClient
 
 VALID_CSV = (
@@ -18,7 +19,8 @@ def create_job(client: TestClient, filename: str = "sample.csv") -> int:
         files={"file": (filename, VALID_CSV, "text/csv")},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
+    process_job_task.apply(args=[response.json()["job_id"]], throw=True)
     return response.json()["job_id"]
 
 
@@ -28,7 +30,8 @@ def create_invalid_job(client: TestClient, filename: str = "invalid.csv") -> int
         files={"file": (filename, INVALID_CSV, "text/csv")},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
+    process_job_task.apply(args=[response.json()["job_id"]], throw=True)
     return response.json()["job_id"]
 
 

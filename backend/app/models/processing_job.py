@@ -38,3 +38,17 @@ class JobAnalysis(SQLModel, table=True):
         default_factory=dict, sa_column=Column(JSON, nullable=False)
     )
     ai_report: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+
+
+class JobExecution(SQLModel, table=True):
+    """Durable work intent and fenced execution lease; no Celery result backend."""
+
+    __tablename__ = "job_executions"
+    __table_args__ = (Index("ix_execution_next_dispatch", "next_dispatch_at"),)
+    job_id: int = Field(primary_key=True, foreign_key="processing_jobs.id")
+    attempts: int = 0
+    publish_failures: int = 0
+    claim_token: str | None = None
+    lease_expires_at: datetime | None = None
+    next_dispatch_at: datetime = Field(default_factory=datetime.utcnow)
+    waiting_since: datetime = Field(default_factory=datetime.utcnow)

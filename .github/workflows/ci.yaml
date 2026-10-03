@@ -32,3 +32,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+  async-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -r backend/requirements.txt
+      - run: backend/.venv/bin/python scripts/verify_async_stack.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: async-stack-diagnostics
+          path: |
+            /tmp/intake-async-verify-*/build.log
+            /tmp/intake-async-verify-*/failure.log

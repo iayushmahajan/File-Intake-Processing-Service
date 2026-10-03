@@ -1,4 +1,9 @@
-export type JobStatus = "pending" | "processing" | "completed" | "failed";
+export type JobStatus =
+  | "pending"
+  | "queued"
+  | "processing"
+  | "completed"
+  | "failed";
 export type NumericProfile = {
   count: number;
   min: number | null;
@@ -40,9 +45,10 @@ export type Job = {
   invalid_rows: number;
   error_message: string | null;
   created_at: string;
-  processed_at: string;
+  processed_at: string | null;
 };
 export type JobDetail = Job & {
+  attempts: number;
   file_size: number | null;
   duration_ms: number | null;
   analysis: Analysis | null;
@@ -56,6 +62,7 @@ export type JobPage = {
   page_size: number;
 };
 export type UploadResult = {
+  status_url: string;
   job_id: number;
   status: JobStatus;
   message: string;

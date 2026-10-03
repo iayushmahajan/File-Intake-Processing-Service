@@ -53,15 +53,26 @@ def sanitize_filename_stem(value: str) -> str:
     return sanitized or "processed_file"
 
 
-def build_output_paths(input_path: Path) -> Tuple[str, Path, str, Path]:
+def build_output_paths(
+    input_path: Path, output_dir: Path | None = None
+) -> Tuple[str, Path, str, Path]:
     # The input's UUID identifies this upload; no check-then-write allocation.
     stem = sanitize_filename_stem(input_path.stem)
-    clean = OUTPUT_DIR / f"{stem}_clean.csv"
-    errors = OUTPUT_DIR / f"{stem}_errors.csv"
-    return clean.name, clean, errors.name, errors
+    directory = output_dir or OUTPUT_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    clean = directory / f"{stem}_clean.csv"
+    errors = directory / f"{stem}_errors.csv"
+    return (
+        str(clean.relative_to(OUTPUT_DIR)),
+        clean,
+        str(errors.relative_to(OUTPUT_DIR)),
+        errors,
+    )
 
 
-def process_csv_file(input_path: Path) -> Dict[str, object]:
+def process_csv_file(
+    input_path: Path, output_dir: Path | None = None
+) -> Dict[str, object]:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info(
@@ -78,7 +89,7 @@ def process_csv_file(input_path: Path) -> Dict[str, object]:
     error_breakdown: Dict[str, int] = {}
 
     cleaned_filename, cleaned_path, error_filename, error_path = build_output_paths(
-        input_path
+        input_path, output_dir
     )
 
     with input_path.open("r", newline="", encoding="utf-8-sig") as csvfile:

@@ -105,9 +105,7 @@ export function UploadPanel({
       const result = (await response.json()) as UploadResult;
       onUploadComplete(result);
       setUploadMessage(
-        result.status === "failed"
-          ? (result.error_message ?? "Processing failed.")
-          : "Upload completed successfully.",
+        `Job #${result.job_id} accepted. Processing continues in the background.`,
       );
     } catch (error) {
       setUploadMessage(
@@ -230,7 +228,7 @@ export function UploadPanel({
           <div
             role="status"
             className={`rounded-xl border px-4 py-3 text-sm ${
-              uploadMessage.includes("successfully")
+              uploadMessage.includes("accepted")
                 ? "border-green-500/20 bg-green-500/10 text-green-300"
                 : "border-red-500/20 bg-red-500/10 text-red-300"
             }`}
@@ -245,7 +243,7 @@ export function UploadPanel({
           onClick={handleUpload}
           className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accentSoft disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isUploading ? "Uploading and processing…" : "Upload and Analyze CSV"}
+          {isUploading ? "Uploading…" : "Upload and Analyze CSV"}
         </button>
       </div>
     </SectionCard>

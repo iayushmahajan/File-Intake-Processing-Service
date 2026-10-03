@@ -8,7 +8,7 @@ from sqlmodel import Session, desc, select
 
 from app.core.config import INPUT_DIR, OUTPUT_DIR
 from app.core.db import get_session
-from app.models.processing_job import JobAnalysis, ProcessingJob
+from app.models.processing_job import JobAnalysis, JobExecution, ProcessingJob
 from app.schemas.ai import AIAnalysisResponse
 from app.schemas.job import JobDetailResponse, JobListResponse
 from app.services.llm_analyzer import generate_ai_analysis
@@ -38,7 +38,7 @@ def return_csv_file(
 
     return FileResponse(
         path=file_path,
-        filename=filename,
+        filename=Path(filename).name,
         media_type="text/csv",
     )
 
@@ -58,7 +58,8 @@ def list_jobs(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     search: str = Query("", max_length=200),
-    status: Literal["pending", "processing", "completed", "failed"] | None = None,
+    status: Literal["pending", "queued", "processing", "completed", "failed"]
+    | None = None,
     session: Session = Depends(get_session),
 ):
     filters = []
@@ -93,7 +94,10 @@ def get_job(job_id: int, session: Session = Depends(get_session)):
     job = get_job_or_404(job_id, session)
     metrics = session.get(JobAnalysis, job_id)
     extra = metrics.model_dump(exclude={"job_id"}) if metrics else {}
-    return JobDetailResponse(**job.model_dump(), **extra)
+    execution = session.get(JobExecution, job_id)
+    return JobDetailResponse(
+        **job.model_dump(), attempts=execution.attempts if execution else 0, **extra
+    )
 
 
 @router.post("/{job_id}/ai-analysis", response_model=AIAnalysisResponse)

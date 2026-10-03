@@ -1,4 +1,5 @@
 from app.main import app
+from app.tasks import process_job_task
 from fastapi.testclient import TestClient
 
 VALID_CSV = (
@@ -27,10 +28,19 @@ def test_upload_csv_success() -> None:
             files={"file": ("sample.csv", VALID_CSV, "text/csv")},
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()
+    assert data["status"] == "pending"
+    process_job_task.apply(args=[data["job_id"]], throw=True)
+    with TestClient(app) as client:
+        detail = client.get(data["status_url"]).json()
+    data["processing_summary"] = {
+        **detail,
+        "cleaned_filename": detail["filename_cleaned"],
+        "error_filename": detail["filename_error_report"],
+    }
 
-    assert data["message"] == "File uploaded and processed successfully."
+    assert data["message"] == "Upload accepted for background processing."
     assert data["original_filename"] == "sample.csv"
     assert data["saved_filename"].endswith("_sample.csv")
     assert data["processing_summary"]["total_rows"] == 2
@@ -67,8 +77,17 @@ def test_upload_csv_with_invalid_rows() -> None:
             files={"file": ("invalid_sample.csv", INVALID_CSV, "text/csv")},
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()
+    assert data["status"] == "pending"
+    process_job_task.apply(args=[data["job_id"]], throw=True)
+    with TestClient(app) as client:
+        detail = client.get(data["status_url"]).json()
+    data["processing_summary"] = {
+        **detail,
+        "cleaned_filename": detail["filename_cleaned"],
+        "error_filename": detail["filename_error_report"],
+    }
 
     assert data["processing_summary"]["total_rows"] == 3
     assert data["processing_summary"]["valid_rows"] == 2

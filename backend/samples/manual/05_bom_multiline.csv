@@ -1,0 +1,4 @@
+﻿customer_id,email,country,signup_date,order_amount,currency,payment_method,order_status,product_category,quantity,discount_percent,last_login_date
+DEMO-105,alex@example.com,DE,2026-04-01,125.50,EUR,card,completed,"Home, office
+and books",2,10,2026-04-10
+DEMO-102,sam@example.com,US,2026-04-01,0,USD,paypal,pending,home,1,0,2026-04-01

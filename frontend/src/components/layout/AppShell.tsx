@@ -1,12 +1,26 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { JobsPanel } from "../panels/JobsPanel";
 import { ResultsPanel } from "../panels/ResultsPanel";
 import { UploadPanel } from "../panels/UploadPanel";
 
 export function AppShell() {
-  const [jobId, setJobId] = useState<number | null>(null);
+  const [jobId, setJobId] = useState<number | null>(() => {
+    const value = Number(
+      new URLSearchParams(window.location.search).get("job"),
+    );
+    return Number.isInteger(value) && value > 0 && value <= 2147483647
+      ? value
+      : null;
+  });
+  const selectJob = (id: number) => {
+    setJobId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("job", String(id));
+    window.history.replaceState(null, "", url);
+  };
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const onTerminal = useCallback(() => setRefreshKey((key) => key + 1), []);
   const resultsRef = useRef<HTMLDivElement>(null);
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-8">
@@ -32,21 +46,25 @@ export function AppShell() {
               onUploadStart={() => setIsProcessing(true)}
               onUploadError={() => setIsProcessing(false)}
               onUploadComplete={(result) => {
-                setJobId(result.job_id);
+                selectJob(result.job_id);
                 setIsProcessing(false);
                 setRefreshKey((key) => key + 1);
               }}
             />
           </div>
           <div ref={resultsRef} className="min-w-0 scroll-mt-4">
-            <ResultsPanel jobId={jobId} isLoading={isProcessing} />
+            <ResultsPanel
+              jobId={jobId}
+              isLoading={isProcessing}
+              onTerminal={onTerminal}
+            />
           </div>
         </div>
         <JobsPanel
           refreshKey={refreshKey}
           selectedId={jobId}
           onSelect={(id) => {
-            setJobId(id);
+            selectJob(id);
             resultsRef.current?.scrollIntoView({
               behavior: "smooth",
               block: "start",

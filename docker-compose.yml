@@ -14,12 +14,22 @@ services:
       timeout: 5s
       retries: 10
   api:
+    image: ${COMPOSE_PROJECT_NAME:-file-intake}-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
       - "127.0.0.1:8000:8000"
-    environment:
+    environment: &app-environment
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_QUEUE: ${CELERY_QUEUE:-csv-processing}
+      JOB_TIME_LIMIT_SECONDS: ${JOB_TIME_LIMIT_SECONDS:-120}
+      JOB_LEASE_SECONDS: ${JOB_LEASE_SECONDS:-150}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
+      JOB_QUEUE_TIMEOUT_SECONDS: ${JOB_QUEUE_TIMEOUT_SECONDS:-600}
+      DISPATCH_INTERVAL_SECONDS: ${DISPATCH_INTERVAL_SECONDS:-2}
+      JOB_REDISPATCH_SECONDS: ${JOB_REDISPATCH_SECONDS:-30}
+      PUBLISH_MAX_FAILURES: ${PUBLISH_MAX_FAILURES:-8}
       DATABASE_URL: postgresql+psycopg://intake:${POSTGRES_PASSWORD:-intake_local_only}@db:5432/intake
       DATA_DIR: /app/data
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
@@ -39,5 +49,57 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  worker:
+    image: ${COMPOSE_PROJECT_NAME:-file-intake}-backend
+    pull_policy: never
+    environment: *app-environment
+    command: ["celery", "-A", "app.core.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=2", "--hostname=worker@%h"]
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app:celery_app inspect ping --destination worker@$$HOSTNAME --timeout 5"]
+      interval: 20s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+    stop_grace_period: 130s
+    restart: unless-stopped
+  dispatcher:
+    image: ${COMPOSE_PROJECT_NAME:-file-intake}-backend
+    pull_policy: never
+    environment: *app-environment
+    command: ["python", "-m", "app.dispatcher"]
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time,pathlib; assert time.time()-pathlib.Path('/tmp/intake-dispatcher-heartbeat').stat().st_mtime < 60"]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  redis_data:

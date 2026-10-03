@@ -7,6 +7,7 @@ from app.main import app
 from app.schemas.ai import AIReport
 from app.services.quality import calculate_quality
 from app.services.validator import REQUIRED_COLUMNS, validate_row
+from app.tasks import process_job_task
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -18,8 +19,20 @@ def upload(client, text, name="sample.csv"):
     response = client.post(
         "/api/v1/uploads", files={"file": (name, text.encode(), "text/csv")}
     )
-    assert response.status_code == 200
-    return response.json()
+    assert response.status_code == 202
+    result = response.json()
+    assert result["status"] == "pending"
+    process_job_task.apply(args=[result["job_id"]], throw=True)
+    detail = client.get(result["status_url"]).json()
+    return {
+        **result,
+        "status": detail["status"],
+        "processing_summary": {
+            **detail,
+            "cleaned_filename": detail["filename_cleaned"],
+            "error_filename": detail["filename_error_report"],
+        },
+    }
 
 
 def test_header_failure_persisted_and_safe_download():
@@ -46,10 +59,10 @@ def test_header_failure_persisted_and_safe_download():
 
 
 def test_processing_exception_retains_failed_job(monkeypatch):
-    def fail(_):
+    def fail(_, **kwargs):
         raise RuntimeError("private/path")
 
-    monkeypatch.setattr("app.api.routes.uploads.process_csv_file", fail)
+    monkeypatch.setattr("app.services.job_processing.process_csv_file", fail)
     with TestClient(app) as client:
         result = upload(client, HEADER + "\n" + ROW)
         assert result["status"] == "failed"
@@ -210,5 +223,7 @@ def test_non_utf8_is_a_persisted_failure():
         response = client.post(
             "/api/v1/uploads", files={"file": ("broken.csv", b"\xff\xfe", "text/csv")}
         )
-        assert response.json()["status"] == "failed"
+        assert response.status_code == 202
+        process_job_task.apply(args=[response.json()["job_id"]], throw=True)
+        assert client.get(response.json()["status_url"]).json()["status"] == "failed"
         assert client.get("/api/v1/jobs?status=failed").json()["total"] == 1

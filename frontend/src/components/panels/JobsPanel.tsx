@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isActive, statusClass } from "../../lib/job-state";
 import { api, downloadUrl } from "../../lib/api";
 import { parseCsvPreview } from "../../lib/csv";
 import type { Job, JobPage } from "../../types/jobs";
@@ -25,34 +26,43 @@ export function JobsPanel({
     const controller = new AbortController();
     setLoading(true);
     setError("");
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
       const params = new URLSearchParams({
         page: String(page),
         page_size: "10",
         search,
       });
       if (status) params.set("status", status);
-      api<JobPage>(`/api/v1/jobs?${params}`, { signal: controller.signal })
-        .then((result) => {
-          if (!controller.signal.aborted) setData(result);
-        })
-        .catch((failure) => {
-          if (!controller.signal.aborted)
-            setError(
-              failure instanceof Error
-                ? failure.message
-                : "Could not load history.",
-            );
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
+      try {
+        const result = await api<JobPage>(`/api/v1/jobs?${params}`, {
+          signal: controller.signal,
         });
-    }, 200);
+        if (controller.signal.aborted) return;
+        setData(result);
+        setError("");
+        if (result.jobs.some((job) => isActive(job.status)))
+          timer = setTimeout(load, 2000);
+      } catch (failure) {
+        if (!controller.signal.aborted) {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "Could not load history.",
+          );
+          timer = setTimeout(load, 3000);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    timer = setTimeout(load, 200);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
   }, [page, search, status, refreshKey, reload]);
+
   return (
     <SectionCard
       title="Processing history"
@@ -82,9 +92,11 @@ export function JobsPanel({
             }}
           >
             <option value="">All statuses</option>
-            {["pending", "processing", "completed", "failed"].map((value) => (
-              <option key={value}>{value}</option>
-            ))}
+            {["pending", "queued", "processing", "completed", "failed"].map(
+              (value) => (
+                <option key={value}>{value}</option>
+              ),
+            )}
           </select>
         </label>
         <button
@@ -131,15 +143,13 @@ export function JobsPanel({
                   </button>
                 </td>
                 <td>
-                  <span
-                    className={`status-badge ${job.status === "failed" ? "text-red-300" : "text-emerald-300"}`}
-                  >
+                  <span className={`status-badge ${statusClass(job.status)}`}>
                     {job.status}
                   </span>
                 </td>
-                <td>{job.total_rows}</td>
-                <td>{job.valid_rows}</td>
-                <td>{job.invalid_rows}</td>
+                <td>{isActive(job.status) ? "—" : job.total_rows}</td>
+                <td>{isActive(job.status) ? "—" : job.valid_rows}</td>
+                <td>{isActive(job.status) ? "—" : job.invalid_rows}</td>
                 <td>
                   <button
                     className="text-xs text-accentSoft hover:underline"

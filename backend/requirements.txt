@@ -30,3 +30,4 @@ openai==2.54.0
 python-dotenv==1.2.3
 alembic==1.18.4
 psycopg[binary]==3.3.3
+celery[redis]==5.5.3
