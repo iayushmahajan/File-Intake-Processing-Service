@@ -109,9 +109,6 @@ summary:focus-visible {
 }
 
 @layer components {
-  .rail-link {
-    @apply flex h-12 w-12 items-center justify-center rounded-2xl text-textMuted transition-colors hover:bg-surfaceSoft hover:text-accent;
-  }
   .data-table tbody tr:hover {
     @apply bg-surfaceSoft/50;
   }

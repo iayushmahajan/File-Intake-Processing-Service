@@ -123,9 +123,16 @@ export function ResultsPanel({
                 ).toLocaleString()}
               </p>
             </div>
-            <span className={`status-badge ${statusClass(job.status)}`}>
-              {job.status}
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              {job.status === "completed" && (
+                <a className="button-secondary" href="#history">
+                  View history ↓
+                </a>
+              )}
+              <span className={`status-badge ${statusClass(job.status)}`}>
+                {job.status}
+              </span>
+            </div>
           </div>
           {job.error_message && (
             <p className="notice-error mt-4" role="alert">
