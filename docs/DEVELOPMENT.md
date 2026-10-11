@@ -1,5 +1,7 @@
 # Development reference
 
+For column mapping, saved templates, record exploration and correction workflows, see the [import workspace guide](IMPORT_WORKSPACE.md).
+
 Detailed configuration, CSV rules and local Python setup for the File Intake & Data Quality Platform. For the Docker quick start, see the [README](../README.md).
 
 ## CSV schema and validation

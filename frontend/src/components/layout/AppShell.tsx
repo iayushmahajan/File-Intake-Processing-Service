@@ -57,6 +57,10 @@ export function AppShell() {
               jobId={jobId}
               isLoading={isProcessing}
               onTerminal={onTerminal}
+              onSelect={(id) => {
+                selectJob(id);
+                setRefreshKey((key) => key + 1);
+              }}
             />
           </div>
         </div>

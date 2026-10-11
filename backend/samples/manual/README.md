@@ -41,3 +41,10 @@ docker compose start worker
 ```
 
 The same job should complete automatically. To exercise restarts, broker outages and duplicate delivery in disposable infrastructure, use `backend/.venv/bin/python scripts/verify_async_stack.py` instead of disrupting development jobs.
+
+
+## Mapped import and correction walkthrough
+
+Upload `09_partner_headers.csv`. Confirm the suggested title-case header mapping, save a template named **Partner transactions**, preview, then process. Expect **1 accepted / 1 rejected**, score **70**. In Dataset explorer select **Correct record 3**, change `email` to `bob@example.com`, validate and reprocess. Expect a linked child job with **2 accepted / 0 rejected**, score **100**. Reopen the parent to confirm its original results and files remain unchanged. Select the saved template on a second import to verify reuse.
+
+Use the explorer's error category and status filters and download **Export filtered CSV** to verify the export matches the selected result set. More configuration and correction details are in [the import workspace guide](../../../docs/IMPORT_WORKSPACE.md).

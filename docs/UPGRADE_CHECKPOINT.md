@@ -1,6 +1,33 @@
 # Upgrade checkpoint
 
-## Current async phase — 2026-10-02
+## Import workspace phase — 2026-10-09
+
+Implemented the dataset explorer/correction workflow and mapped imports with saved templates.
+
+- Persisted, paginated record inspection with search, status/category filters, stable sorting, column visibility and full filtered CSV exports.
+- Editable rejected records, field-level validation, undo, full-file reprocessing, linked parent/child jobs, before/after changes and quality comparisons. Original inputs, analytics and reports are preserved.
+- Header suggestions, explicit column mapping, a 10-record validation preview, declarative additional rules and version-checked templates. Each job retains its exact configuration snapshot.
+- Additive migration `0003`; record publication shares the existing guarded result transaction. Tests verify rollback and lease recovery if record publication fails.
+- Updated README, [workspace guide](IMPORT_WORKSPACE.md), development instructions and the `09_partner_headers.csv` manual sample.
+
+### Verification
+
+- Backend: **71 tests passed**, including migration preservation and atomic record publication.
+- Frontend: **13 tests passed**; TypeScript and production build passed.
+- Playwright: **3 workflows passed**, including mapped import, saved-template reuse, correction/reprocessing, parent preservation and mobile overflow checks.
+- Disposable PostgreSQL/Redis/Celery stack: existing restart, message-loss, duplicate delivery, worker termination, broker outage and missing-file checks passed. New mapped import, JSON-field sorting/filtering/export, template snapshot and linked-correction checks also passed. Verification project `intake-verify-f4ece0db` and its volumes were removed afterward.
+- Scoped Ruff checks (`E4,E7,E9,F,I`) passed on changed Python files.
+- Local development services were rebuilt and became healthy; PostgreSQL reports migration `0003`. A live demo import (job 4) produced one accepted and one rejected record, and its corrected child (job 5) accepted both. Source bytes and parent results remained unchanged. The dashboard is available on port 5175.
+- `git diff --check` passed.
+- No live AI-provider call or remote GitHub Actions run is claimed.
+
+### Scope notes
+
+Older completed jobs retain their existing reports but require re-upload for the new record index. Preview checks only a sample; duplicate detection runs on the full file in the worker. Field sorting is alphabetical. Correction drafts remain in browser state until submitted, and navigating to another job discards them. The application remains single-operator and bounded by its upload limit; it does not provide streaming analytics or authentication. See the workspace guide for request bounds and storage behavior.
+
+---
+
+## Previous async phase — 2026-10-02
 
 The original analytical upgrade was preserved in `db04fb4`, followed by checkpoint commit `85aa613`. The sections below the historical divider describe that earlier synchronous baseline, not the current architecture.
 

@@ -4,14 +4,29 @@ import type { JobDetail } from "../../types/jobs";
 function label(value: string) {
   return value.replace(/_/g, " ");
 }
-function Bars({ values }: { values: { value: string; count: number }[] }) {
+function Bars({
+  values,
+  onPick,
+}: {
+  values: { value: string; count: number }[];
+  onPick?: (value: string) => void;
+}) {
   const max = Math.max(1, ...values.map((item) => item.count));
   return (
     <div className="space-y-3">
       {values.map((item) => (
         <div key={item.value}>
           <div className="mb-1 flex justify-between gap-3 text-xs">
-            <span className="break-words">{item.value}</span>
+            {onPick ? (
+              <button
+                className="break-words text-left text-accentSoft underline"
+                onClick={() => onPick(item.value)}
+              >
+                {item.value}
+              </button>
+            ) : (
+              <span className="break-words">{item.value}</span>
+            )}
             <span className="font-mono text-textMuted">{item.count}</span>
           </div>
           <div className="h-2 rounded bg-surfaceSoft">
@@ -25,7 +40,13 @@ function Bars({ values }: { values: { value: string; count: number }[] }) {
     </div>
   );
 }
-export function AnalysisView({ job }: { job: JobDetail }) {
+export function AnalysisView({
+  job,
+  onExplore,
+}: {
+  job: JobDetail;
+  onExplore?: (category: string) => void;
+}) {
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
   const analysis = job.analysis;
@@ -147,7 +168,9 @@ export function AnalysisView({ job }: { job: JobDetail }) {
               <div className="subcard">
                 <h3 className="mb-3 font-medium">Observed signals</h3>
                 <ul className="space-y-2 text-sm text-textMuted">
-                  {analysis.insights?.map((text) => <li key={text}>{text}</li>)}
+                  {analysis.insights?.map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -160,6 +183,7 @@ export function AnalysisView({ job }: { job: JobDetail }) {
                     Validation issue distribution
                   </h3>
                   <Bars
+                    onPick={onExplore}
                     values={Object.entries(job.error_breakdown).map(
                       ([value, count]) => ({ value, count }),
                     )}
@@ -188,6 +212,14 @@ export function AnalysisView({ job }: { job: JobDetail }) {
                   ))}
                 </div>
               </div>
+              {onExplore && (
+                <button
+                  className="button-secondary"
+                  onClick={() => onExplore("")}
+                >
+                  Explore and correct all records
+                </button>
+              )}
               <label className="block text-sm">
                 Search rejected records
                 <input
@@ -199,7 +231,7 @@ export function AnalysisView({ job }: { job: JobDetail }) {
               </label>
               <p className="text-xs text-textMuted">
                 Search covers the first 100 rejected records. Download the error
-                CSV for all records. Correct the listed fields and upload again.
+                CSV for all records.
               </p>
               <div className="overflow-x-auto">
                 <table className="data-table">

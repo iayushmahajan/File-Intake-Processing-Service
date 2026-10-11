@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from app.schemas.ai import AIReport
 from app.schemas.analysis import AnalysisResponse
@@ -11,7 +11,7 @@ JobStatus = Literal["pending", "queued", "processing", "completed", "failed"]
 
 class UploadResponse(BaseModel):
     status: JobStatus
-    error_message: Optional[str] = None
+    error_message: str | None = None
     message: str
     original_filename: str
     saved_filename: str
@@ -31,7 +31,7 @@ class JobResponse(BaseModel):
     total_rows: int
     valid_rows: int
     invalid_rows: int
-    error_message: Optional[str]
+    error_message: str | None
     created_at: datetime
     processed_at: datetime | None
 
@@ -58,6 +58,12 @@ class JobListResponse(BaseModel):
 
 
 class JobDetailResponse(JobResponse):
+    records_available: bool = False
+    parent_job_id: int | None = None
+    parent_summary: dict | None = None
+    child_job_ids: list[int] = Field(default_factory=list)
+    import_options: dict | None = None
+    corrections: dict = Field(default_factory=dict)
     attempts: int = 0
     file_size: int | None = None
     duration_ms: int | None = None

@@ -2,7 +2,6 @@ import math
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Tuple
 
 REQUIRED_COLUMNS = [
     "customer_id",
@@ -25,7 +24,7 @@ ALLOWED_PAYMENT_METHODS = {"card", "paypal", "bank_transfer"}
 ALLOWED_ORDER_STATUS = {"completed", "pending", "cancelled"}
 
 
-def validate_csv_columns(fieldnames: List[str] | None) -> Tuple[bool, List[str]]:
+def validate_csv_columns(fieldnames: list[str] | None) -> tuple[bool, list[str]]:
     if fieldnames is None:
         return False, ["CSV file is missing a header row."]
 
@@ -42,8 +41,8 @@ def validate_csv_columns(fieldnames: List[str] | None) -> Tuple[bool, List[str]]
     return True, []
 
 
-def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
-    errors: List[str] = []
+def validate_row(row: dict[str, str], row_number: int) -> list[str]:
+    errors: list[str] = []
 
     customer_id = (row.get("customer_id") or "").strip()
     email = (row.get("email") or "").strip()
@@ -166,12 +165,12 @@ def validate_row(row: Dict[str, str], row_number: int) -> List[str]:
 
 
 def get_error_category(error: str) -> str:
+    if "column count" in error:
+        return "CSV Structure"
     if "header" in error or "Missing required columns" in error:
         return "CSV Header"
     if "duplicate record" in error:
         return "Duplicate Record"
-    if "column count" in error:
-        return "CSV Structure"
     if "last_login_date" in error:
         return "Last Login Date"
     if "customer_id" in error:

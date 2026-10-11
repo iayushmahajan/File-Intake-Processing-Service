@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
@@ -12,7 +11,7 @@ class ProcessingJob(SQLModel, table=True):
         Index("ix_jobs_status", "status"),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     filename_original: str
     filename_input_saved: str
     filename_cleaned: str
@@ -21,7 +20,7 @@ class ProcessingJob(SQLModel, table=True):
     total_rows: int = Field(default=0)
     valid_rows: int = Field(default=0)
     invalid_rows: int = Field(default=0)
-    error_message: Optional[str] = Field(default=None)
+    error_message: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     processed_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -52,3 +51,43 @@ class JobExecution(SQLModel, table=True):
     lease_expires_at: datetime | None = None
     next_dispatch_at: datetime = Field(default_factory=datetime.utcnow)
     waiting_since: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ImportTemplate(SQLModel, table=True):
+    __tablename__ = "import_templates"
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    version: int = 1
+    options: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class JobImport(SQLModel, table=True):
+    __tablename__ = "job_imports"
+    job_id: int = Field(primary_key=True, foreign_key="processing_jobs.id")
+    parent_job_id: int | None = Field(
+        default=None, foreign_key="processing_jobs.id", index=True
+    )
+    options: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    corrections: dict = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    changes: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    records_available: bool = False
+
+
+class JobRecord(SQLModel, table=True):
+    __tablename__ = "job_records"
+    __table_args__ = (
+        Index("ix_records_job_status_row", "job_id", "status", "row_number"),
+    )
+    job_id: int = Field(primary_key=True, foreign_key="processing_jobs.id")
+    row_number: int = Field(primary_key=True)
+    status: str
+    values: dict = Field(sa_column=Column(JSON, nullable=False))
+    normalized: dict = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    issues: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    categories: str = ""
+    search_text: str = ""

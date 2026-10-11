@@ -2,12 +2,13 @@
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 from uuid import uuid4
+
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -226,6 +227,15 @@ try:
             [
                 sys.executable,
                 str(ROOT / "scripts/smoke_api.py"),
+                "--base-url",
+                str(client.base_url),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/verify_import_workspace.py"),
                 "--base-url",
                 str(client.base_url),
             ],

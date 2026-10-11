@@ -1,24 +1,29 @@
 import csv
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from app.core.config import OUTPUT_DIR
 from app.core.logging import get_logger
+from app.schemas.imports import ImportOptions
 from app.services.analyzer import analyze_processed_data
+from app.services.import_config import (
+    canonical_row,
+    check_mapping,
+    row_errors,
+    structured_issues,
+)
 from app.services.report_generator import write_cleaned_csv, write_error_csv
 from app.services.transformer import transform_row
 from app.services.validator import (
     REQUIRED_COLUMNS,
     get_error_category,
     validate_csv_columns,
-    validate_row,
 )
 
 logger = get_logger(__name__)
 
 
-def add_errors_to_breakdown(error_breakdown: Dict[str, int], errors: List[str]) -> None:
+def add_errors_to_breakdown(error_breakdown: dict[str, int], errors: list[str]) -> None:
     for error in errors:
         category = get_error_category(error)
         error_breakdown[category] = error_breakdown.get(category, 0) + 1
@@ -55,7 +60,7 @@ def sanitize_filename_stem(value: str) -> str:
 
 def build_output_paths(
     input_path: Path, output_dir: Path | None = None
-) -> Tuple[str, Path, str, Path]:
+) -> tuple[str, Path, str, Path]:
     # The input's UUID identifies this upload; no check-then-write allocation.
     stem = sanitize_filename_stem(input_path.stem)
     directory = output_dir or OUTPUT_DIR
@@ -71,8 +76,11 @@ def build_output_paths(
 
 
 def process_csv_file(
-    input_path: Path, output_dir: Path | None = None
-) -> Dict[str, object]:
+    input_path: Path,
+    output_dir: Path | None = None,
+    options: ImportOptions | None = None,
+    corrections: dict | None = None,
+) -> dict[str, object]:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info(
@@ -80,13 +88,16 @@ def process_csv_file(
         extra={"input_path": str(input_path)},
     )
 
+    options = options or ImportOptions()
+    corrections = corrections or {}
+    records = []
     missing_cells = 0
     seen_records: set[tuple] = set()
     duplicate_records = 0
     source_rows: list[int] = []
-    valid_rows: List[Dict[str, str]] = []
-    error_rows: List[Dict[str, str]] = []
-    error_breakdown: Dict[str, int] = {}
+    valid_rows: list[dict[str, str]] = []
+    error_rows: list[dict[str, str]] = []
+    error_breakdown: dict[str, int] = {}
 
     cleaned_filename, cleaned_path, error_filename, error_path = build_output_paths(
         input_path, output_dir
@@ -95,7 +106,11 @@ def process_csv_file(
     with input_path.open("r", newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile, strict=True)
 
-        columns_valid, column_errors = validate_csv_columns(reader.fieldnames)
+        if options.mapping:
+            check_mapping(reader.fieldnames, options)
+        columns_valid, column_errors = validate_csv_columns(
+            REQUIRED_COLUMNS if options.mapping else reader.fieldnames
+        )
 
         if not columns_valid:
             add_errors_to_breakdown(error_breakdown, column_errors)
@@ -153,12 +168,14 @@ def process_csv_file(
                 "analysis": analysis,
             }
 
-        for row_number, row in enumerate(reader, start=2):
-            errors = validate_row(row, row_number)
+        for row_number, source in enumerate(reader, start=2):
+            row = canonical_row(source, options)
+            row.update(corrections.get(str(row_number), {}))
+            errors, prepared = row_errors(row, row_number, options)
             missing_cells += sum(
                 not (row.get(key) or "").strip() for key in REQUIRED_COLUMNS
             )
-            if None in row or any(row.get(key) is None for key in REQUIRED_COLUMNS):
+            if None in source or any(value is None for value in source.values()):
                 errors.append("CSV column count does not match header")
             fingerprint = tuple(
                 (row.get(key) or "").strip().casefold() for key in REQUIRED_COLUMNS
@@ -168,6 +185,27 @@ def process_csv_file(
                 errors.append("duplicate record: identical required field values")
             seen_records.add(fingerprint)
 
+            normalized = transform_row(prepared) if not errors else {}
+            issues = structured_issues(errors)
+            records.append(
+                {
+                    "row_number": row_number,
+                    "status": "rejected" if errors else "accepted",
+                    "values": {k: row.get(k) or "" for k in REQUIRED_COLUMNS},
+                    "normalized": normalized,
+                    "issues": issues,
+                    "categories": "|"
+                    + "|".join(sorted({i["category"] for i in issues}))
+                    + "|",
+                    "search_text": " ".join(
+                        [
+                            str(row_number),
+                            *[str(row.get(k) or "") for k in REQUIRED_COLUMNS],
+                            *errors,
+                        ]
+                    ).casefold(),
+                }
+            )
             if errors:
                 add_errors_to_breakdown(error_breakdown, errors)
 
@@ -190,7 +228,7 @@ def process_csv_file(
                     }
                 )
             else:
-                valid_rows.append(transform_row(row))
+                valid_rows.append(normalized)
                 source_rows.append(row_number)
 
     write_cleaned_csv(cleaned_path, valid_rows)
@@ -238,6 +276,7 @@ def process_csv_file(
     )
 
     return {
+        "records": records,
         "status": "completed" if total_rows else "failed",
         "error_message": None if total_rows else "CSV contains no data records.",
         "total_rows": total_rows,

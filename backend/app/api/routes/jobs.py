@@ -8,7 +8,12 @@ from sqlmodel import Session, desc, select
 
 from app.core.config import INPUT_DIR, OUTPUT_DIR
 from app.core.db import get_session
-from app.models.processing_job import JobAnalysis, JobExecution, ProcessingJob
+from app.models.processing_job import (
+    JobAnalysis,
+    JobExecution,
+    JobImport,
+    ProcessingJob,
+)
 from app.schemas.ai import AIAnalysisResponse
 from app.schemas.job import JobDetailResponse, JobListResponse
 from app.services.llm_analyzer import generate_ai_analysis
@@ -95,8 +100,37 @@ def get_job(job_id: int, session: Session = Depends(get_session)):
     metrics = session.get(JobAnalysis, job_id)
     extra = metrics.model_dump(exclude={"job_id"}) if metrics else {}
     execution = session.get(JobExecution, job_id)
+    metadata = session.get(JobImport, job_id)
+    parent = (
+        session.get(ProcessingJob, metadata.parent_job_id)
+        if metadata and metadata.parent_job_id
+        else None
+    )
+    parent_metrics = session.get(JobAnalysis, parent.id) if parent else None
+    children = session.exec(
+        select(JobImport.job_id)
+        .where(JobImport.parent_job_id == job_id)
+        .order_by(JobImport.job_id)
+    ).all()
     return JobDetailResponse(
-        **job.model_dump(), attempts=execution.attempts if execution else 0, **extra
+        records_available=metadata.records_available if metadata else False,
+        parent_job_id=metadata.parent_job_id if metadata else None,
+        parent_summary={
+            "id": parent.id,
+            "valid_rows": parent.valid_rows,
+            "invalid_rows": parent.invalid_rows,
+            "score": parent_metrics.analysis.get("quality", {}).get("score")
+            if parent_metrics
+            else None,
+        }
+        if parent
+        else None,
+        child_job_ids=children,
+        import_options=metadata.options if metadata else None,
+        corrections=metadata.changes if metadata else {},
+        **job.model_dump(),
+        attempts=execution.attempts if execution else 0,
+        **extra,
     )
 
 

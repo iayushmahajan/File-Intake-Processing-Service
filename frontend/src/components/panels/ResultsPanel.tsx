@@ -1,3 +1,4 @@
+import { RecordExplorer } from "./RecordExplorer";
 import { useEffect, useState } from "react";
 import { isActive, statusClass } from "../../lib/job-state";
 import { api, downloadUrl } from "../../lib/api";
@@ -9,17 +10,22 @@ export function ResultsPanel({
   jobId,
   isLoading = false,
   onTerminal,
+  onSelect,
 }: {
   jobId: number | null;
   isLoading?: boolean;
   onTerminal?: () => void;
+  onSelect?: (id: number) => void;
 }) {
+  const [category, setCategory] = useState("");
+  const [categoryChange, setCategoryChange] = useState(0);
   const [job, setJob] = useState<JobDetail | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     setJob(null);
+    setCategory("");
     setError("");
     if (jobId === null) {
       setLoading(false);
@@ -206,7 +212,97 @@ export function ResultsPanel({
                     ),
                 )}
               </div>
-              <AnalysisView key={job.id} job={job} />
+              {job.parent_summary && (
+                <section
+                  className="subcard my-5"
+                  aria-label="Correction comparison"
+                >
+                  <h3 className="font-medium">Correction results</h3>
+                  <p className="mt-2 text-sm">
+                    Accepted: {job.parent_summary.valid_rows} → {job.valid_rows}{" "}
+                    · Rejected: {job.parent_summary.invalid_rows} →{" "}
+                    {job.invalid_rows}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    Quality score: {job.parent_summary.score ?? "—"} →{" "}
+                    {job.analysis?.quality?.score ?? "—"}
+                  </p>
+                  <button
+                    className="mt-3 text-xs text-accentSoft underline"
+                    onClick={() => onSelect?.(job.parent_summary!.id)}
+                  >
+                    Open original job #{job.parent_summary.id}
+                  </button>
+                  <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer">
+                      View saved corrections
+                    </summary>
+                    {Object.entries(job.corrections ?? {}).map(
+                      ([row, changes]) => (
+                        <div className="mt-2" key={row}>
+                          <strong>Record {row}</strong>
+                          {Object.entries(changes).map(([field, change]) => (
+                            <p className="break-all" key={field}>
+                              {field}: {change.before || "(empty)"} →{" "}
+                              {change.after || "(empty)"}
+                            </p>
+                          ))}
+                        </div>
+                      ),
+                    )}
+                  </details>
+                </section>
+              )}
+              {!!job.child_job_ids?.length && (
+                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                  Correction jobs:{" "}
+                  {job.child_job_ids.map((id) => (
+                    <button
+                      key={id}
+                      className="text-accentSoft underline"
+                      onClick={() => onSelect?.(id)}
+                    >
+                      Open correction #{id}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {job.import_options?.template_id && (
+                <p className="mt-3 text-xs text-textMuted">
+                  Import template #{job.import_options.template_id} · version{" "}
+                  {job.import_options.template_version} (saved snapshot)
+                </p>
+              )}
+              <AnalysisView
+                key={job.id}
+                job={job}
+                onExplore={
+                  job.records_available
+                    ? (value) => {
+                        setCategory(value);
+                        setCategoryChange((count) => count + 1);
+                        document
+                          .getElementById(`records-${job.id}`)
+                          ?.scrollIntoView({ behavior: "smooth" });
+                      }
+                    : undefined
+                }
+              />
+              {job.records_available && (
+                <RecordExplorer
+                  key={`records-${job.id}`}
+                  job={job}
+                  category={category}
+                  categoryChange={categoryChange}
+                  onCreated={onSelect}
+                />
+              )}
+              {job.status === "completed" && !job.records_available && (
+                <p className="mt-4 text-xs text-textMuted">
+                  This historical job has no record index. Upload its original
+                  CSV again to explore and correct records.
+                </p>
+              )}
               <AiInsights key={`ai-${job.id}`} job={job} />
             </>
           )}

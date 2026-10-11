@@ -10,11 +10,18 @@ from uuid import uuid4
 from app.core.config import INPUT_DIR, JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS, OUTPUT_DIR
 from app.core.db import engine
 from app.core.logging import get_logger
-from app.models.processing_job import JobAnalysis, JobExecution, ProcessingJob
+from app.models.processing_job import (
+    JobAnalysis,
+    JobExecution,
+    JobImport,
+    JobRecord,
+    ProcessingJob,
+)
 from app.schemas.analysis import AnalysisResponse
+from app.schemas.imports import ImportOptions
 from app.services.csv_processor import process_csv_file
 from billiard.exceptions import SoftTimeLimitExceeded
-from sqlalchemy import update
+from sqlalchemy import insert, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
@@ -84,6 +91,18 @@ def _finish(job_id: int, token: str, result: dict, duration_ms: int) -> bool:
         metrics.duration_ms = duration_ms
         metrics.analysis = result["analysis"]
         metrics.error_breakdown = result["error_breakdown"]
+        metadata = session.get(JobImport, job_id)
+        if metadata:
+            metadata.records_available = (
+                "records" in result and result["status"] == "completed"
+            )
+            session.add(metadata)
+        records = result.get("records", [])
+        for start in range(0, len(records), 500):
+            session.execute(
+                insert(JobRecord),
+                [dict(item, job_id=job_id) for item in records[start : start + 500]],
+            )
         session.add_all([job, metrics])
         session.commit()
     return True
@@ -139,7 +158,17 @@ def process_job(job_id: object) -> str:
         source = (INPUT_DIR / filename).resolve()
         if not source.is_relative_to(INPUT_DIR.resolve()):
             raise FileNotFoundError("Invalid stored input location")
-        result = process_csv_file(source, output_dir=attempt_dir)
+        with Session(engine) as session:
+            metadata = session.get(JobImport, job_id)
+            options = (
+                ImportOptions.model_validate(metadata.options)
+                if metadata
+                else ImportOptions()
+            )
+            corrections = dict(metadata.corrections) if metadata else {}
+        result = process_csv_file(
+            source, output_dir=attempt_dir, options=options, corrections=corrections
+        )
         # Verify the analytical contract and files before terminal publication.
         AnalysisResponse.model_validate(result["analysis"])
         for key in ("cleaned_filename", "error_filename"):

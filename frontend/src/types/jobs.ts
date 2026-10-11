@@ -48,6 +48,23 @@ export type Job = {
   processed_at: string | null;
 };
 export type JobDetail = Job & {
+  records_available?: boolean;
+  parent_job_id?: number | null;
+  parent_summary?: {
+    id: number;
+    valid_rows: number;
+    invalid_rows: number;
+    score: number | null;
+  } | null;
+  child_job_ids?: number[];
+  import_options?: {
+    template_id?: number | null;
+    template_version?: number | null;
+  } | null;
+  corrections?: Record<
+    string,
+    Record<string, { before: string; after: string }>
+  >;
   attempts: number;
   file_size: number | null;
   duration_ms: number | null;

@@ -9,20 +9,19 @@ test("upload, inspect analytics, reopen history, preview and handle failure", as
   const failures: string[] = [];
   page.on("pageerror", (error) => failures.push(error.message));
   await page.goto("/");
-  await page
-    .getByLabel("CSV file")
-    .setInputFiles({
-      name: "portfolio-demo.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(
-        [
-          header,
-          good,
-          good.replace("C1", "C2").replace("125.50", "1500"),
-          good.replace("alice@example.com", "invalid"),
-        ].join("\n"),
-      ),
-    });
+  await page.getByLabel("CSV file").setInputFiles({
+    name: "portfolio-demo.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      [
+        header,
+        good,
+        good.replace("C1", "C2").replace("125.50", "1500"),
+        good.replace("alice@example.com", "invalid"),
+      ].join("\n"),
+    ),
+  });
+  await page.getByRole("button", { name: "Preview validation" }).click();
   await page.getByRole("button", { name: "Upload and Analyze CSV" }).click();
   await expect(
     page.getByRole("heading", { name: "portfolio-demo.csv" }),
@@ -65,12 +64,26 @@ test("upload, inspect analytics, reopen history, preview and handle failure", as
       mimeType: "text/csv",
       buffer: Buffer.from("email\nbad@example.com"),
     });
+  await expect(
+    page.getByText("Map all 12 fields to different columns before previewing."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Preview validation" }),
+  ).toBeDisabled();
+  await page
+    .getByLabel("CSV file")
+    .setInputFiles({
+      name: "header-only.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(header + "\n"),
+    });
+  await page.getByRole("button", { name: "Preview validation" }).click();
   await page.getByRole("button", { name: "Upload and Analyze CSV" }).click();
   await expect(
-    page.getByRole("heading", { name: "bad-header.csv" }),
+    page.getByRole("heading", { name: "header-only.csv" }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toContainText(
-    "Missing required columns",
+    "CSV contains no data records",
     { timeout: 20000 },
   );
   expect(failures).toEqual([]);
@@ -81,6 +94,104 @@ test("mobile layout has no horizontal page overflow", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: /File Intake/ }),
   ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+});
+
+test("map partner columns, save a template, correct rejected data and preserve the original", async ({
+  page,
+}) => {
+  const partnerHeaders = header
+    .split(",")
+    .map((field) =>
+      field.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    )
+    .join(",");
+  const csv = [
+    partnerHeaders,
+    good,
+    good.replace("C1,", "C2,").replace("alice@example.com", "bad-email"),
+  ].join("\n");
+  await page.goto("/");
+  await page
+    .getByLabel("CSV file")
+    .setInputFiles({
+      name: "partner-transactions.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  await expect(page.getByLabel("Map email")).toHaveValue("Email");
+  await page.getByText("Save this configuration", { exact: true }).click();
+  await page.getByLabel("Template name").fill("Partner import");
+  await page
+    .getByRole("button", { name: "Save new template", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Saved Partner import, version 1. Preview before processing.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Preview validation" }).click();
+  await expect(page.getByText("Preview · first 2 records")).toBeVisible();
+  await page.getByRole("button", { name: "Upload and Analyze CSV" }).click();
+  await expect(page.getByText("50.0% invalid")).toBeVisible({ timeout: 20000 });
+  const parent = new URL(page.url()).searchParams.get("job")!;
+  await page.getByRole("button", { name: "Validation", exact: true }).click();
+  await page.getByRole("button", { name: "Email", exact: true }).click();
+  const explorer = page.getByRole("region", { name: "Dataset explorer" });
+  await expect(explorer.getByLabel("Error category")).toHaveValue("Email");
+  await expect(explorer.getByText(/1 matching records/)).toBeVisible();
+  await explorer
+    .getByRole("button", { name: "Correct record 3", exact: true })
+    .click();
+  await explorer
+    .getByLabel("Record 3 email", { exact: true })
+    .fill("bob@example.com");
+  await explorer
+    .getByRole("button", { name: "Validate corrections", exact: true })
+    .click();
+  await expect(
+    explorer.getByText("Field validation passed.", { exact: true }),
+  ).toBeVisible();
+  await explorer
+    .getByRole("button", { name: "Reprocess corrected dataset" })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Correction comparison" }),
+  ).toBeVisible({ timeout: 20000 });
+  await expect(
+    page.getByText("Accepted: 1 → 2 · Rejected: 1 → 0"),
+  ).toBeVisible();
+  const child = new URL(page.url()).searchParams.get("job")!;
+  expect(child).not.toBe(parent);
+  await page.reload();
+  await expect(
+    page.getByText("Accepted: 1 → 2 · Rejected: 1 → 0"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: `Open original job #${parent}` })
+    .click();
+  await expect(page.getByText("50.0% invalid")).toBeVisible();
+  await page.getByRole("button", { name: `Open correction #${child}` }).click();
+  await expect(page.getByText("0.0% invalid")).toBeVisible();
+  // A fresh import reuses the saved template after a reload.
+  await page
+    .getByLabel("CSV file")
+    .setInputFiles({
+      name: "partner-next.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  await page
+    .getByLabel("Saved import template")
+    .selectOption({ label: "Partner import · v1" });
+  await expect(page.getByLabel("Map email")).toHaveValue("Email");
+  await page.getByRole("button", { name: "Preview validation" }).click();
+  await expect(page.getByText("Preview · first 2 records")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

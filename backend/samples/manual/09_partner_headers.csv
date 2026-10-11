@@ -1,0 +1,3 @@
+Customer Id,Email,Country,Signup Date,Order Amount,Currency,Payment Method,Order Status,Product Category,Quantity,Discount Percent,Last Login Date
+PARTNER-1,alice@example.com,DE,2026-04-01,125.50,EUR,card,completed,books,2,10,2026-04-10
+PARTNER-2,invalid-email,FR,2026-04-01,90,EUR,paypal,pending,home,1,0,2026-04-10

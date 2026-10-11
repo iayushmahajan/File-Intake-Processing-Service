@@ -71,3 +71,38 @@ def test_async_migration_preserves_analytics_and_marks_legacy_interruption(tmp_p
             == "Saved legacy report"
         )
         assert session.get(ProcessingJob, 2).status == "failed"
+
+
+def test_workspace_migration_preserves_queued_execution(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path}/workspace-upgrade.db")
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0002")
+        connection.execute(
+            text("""INSERT INTO processing_jobs
+            (id, filename_original, filename_input_saved, filename_cleaned, filename_error_report,
+             status, total_rows, valid_rows, invalid_rows, created_at, processed_at)
+            VALUES (7, 'pending.csv', 'pending.csv', '', '', 'queued', 0, 0, 0, '2026-01-01', '2026-01-01')""")
+        )
+        connection.execute(
+            text("""INSERT INTO job_executions
+            (job_id, attempts, publish_failures, next_dispatch_at, waiting_since)
+            VALUES (7, 0, 0, '2026-01-01', '2026-01-01')""")
+        )
+        command.upgrade(config, "head")
+        assert (
+            connection.execute(
+                text("SELECT status FROM processing_jobs WHERE id=7")
+            ).scalar()
+            == "queued"
+        )
+        assert (
+            connection.execute(
+                text("SELECT attempts FROM job_executions WHERE job_id=7")
+            ).scalar()
+            == 0
+        )
+        assert {"job_imports", "job_records", "import_templates"} <= set(
+            inspect(connection).get_table_names()
+        )
