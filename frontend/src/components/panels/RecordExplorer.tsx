@@ -316,15 +316,15 @@ export function RecordExplorer({
                 <td>
                   {row.row_number}
                   {patches[row.row_number] && (
-                    <span className="ml-1 text-amber-300">edited</span>
+                    <span className="ml-1 text-warning">edited</span>
                   )}
                 </td>
                 <td>
                   <span
                     className={
                       row.status === "accepted"
-                        ? "text-emerald-300"
-                        : "text-red-300"
+                        ? "text-success"
+                        : "text-danger"
                     }
                   >
                     {row.status}
@@ -335,7 +335,7 @@ export function RecordExplorer({
                     key={field}
                     className={
                       row.issues.some((i) => i.fields.includes(field))
-                        ? "bg-red-400/5 text-red-300"
+                        ? "bg-danger/5 text-danger"
                         : ""
                     }
                   >
@@ -422,7 +422,7 @@ export function RecordExplorer({
             </button>
           </div>
           {selectedIssues.length > 0 && (
-            <ul className="my-3 space-y-1 text-xs text-amber-300">
+            <ul className="my-3 space-y-1 text-xs text-warning">
               {selectedIssues.map((issue, i) => (
                 <li key={i}>{issue.message}</li>
               ))}
@@ -447,7 +447,7 @@ export function RecordExplorer({
                         ? `issue-${selected.row_number}-${field}`
                         : undefined
                     }
-                    className={`field mt-1 ${messages.length ? "border-red-400/50" : ""}`}
+                    className={`field mt-1 ${messages.length ? "border-danger/50" : ""}`}
                     readOnly={readonly}
                     disabled={busy}
                     value={
@@ -460,7 +460,7 @@ export function RecordExplorer({
                   {messages.length > 0 && (
                     <span
                       id={`issue-${selected.row_number}-${field}`}
-                      className="mt-1 block normal-case text-red-300"
+                      className="mt-1 block normal-case text-danger"
                     >
                       {messages.map((i) => i.message).join("; ")}
                     </span>
@@ -486,7 +486,7 @@ export function RecordExplorer({
             </button>
           )}
           {selected.issues.some((i) => i.category === "CSV Structure") && (
-            <p className="mt-3 text-xs text-amber-300">
+            <p className="mt-3 text-xs text-warning">
               This record has a column-count error. Repair the source CSV and
               upload it again.
             </p>
@@ -532,7 +532,7 @@ export function RecordExplorer({
           {validation && (
             <div
               role="status"
-              className={`text-xs ${validation.valid ? "text-emerald-300" : "text-amber-300"}`}
+              className={`text-xs ${validation.valid ? "text-success" : "text-warning"}`}
             >
               <p>
                 {validation.valid
@@ -553,7 +553,7 @@ export function RecordExplorer({
         </div>
       )}
       {child && (
-        <p role="status" className="text-sm text-emerald-300">
+        <p role="status" className="text-sm text-success">
           Correction job #{child} created.
         </p>
       )}

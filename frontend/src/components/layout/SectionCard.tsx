@@ -18,11 +18,11 @@ export function SectionCard({
   return (
     <section
       className={cn(
-        "rounded-2xl border border-borderSoft bg-surface",
+        "rounded-3xl border border-borderSoft bg-surface shadow-panel",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-borderSoft px-6 py-5">
+      <div className="flex items-start justify-between gap-4 border-b border-borderSoft px-4 py-5 sm:px-6">
         <div>
           <h2 className="text-lg font-semibold text-textMain">{title}</h2>
           {description ? (
@@ -32,7 +32,7 @@ export function SectionCard({
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
 
-      <div className="px-6 py-5">{children}</div>
+      <div className="px-4 py-5 sm:px-6">{children}</div>
     </section>
   );
 }

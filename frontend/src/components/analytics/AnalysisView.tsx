@@ -31,7 +31,7 @@ function Bars({
           </div>
           <div className="h-2 rounded bg-surfaceSoft">
             <div
-              className="h-2 rounded bg-accentSoft"
+              className="h-2 rounded bg-chartTeal"
               style={{ width: `${(item.count / max) * 100}%` }}
             />
           </div>
@@ -69,7 +69,7 @@ export function AnalysisView({
             key={name}
             aria-pressed={tab === name}
             onClick={() => setTab(name)}
-            className={`rounded-lg px-3 py-2 text-sm ${tab === name ? "bg-accent/15 text-accentSoft" : "text-textMuted hover:bg-surfaceSoft"}`}
+            className={`rounded-lg px-3 py-2 text-sm ${tab === name ? "bg-surfaceSoft text-accent font-semibold" : "text-textMuted hover:bg-surfaceSoft"}`}
           >
             {name}
           </button>
@@ -99,7 +99,7 @@ export function AnalysisView({
                         cy="60"
                         r="45"
                         fill="none"
-                        stroke={job.invalid_rows > 0 ? "#f87171" : "#243041"}
+                        stroke={job.invalid_rows > 0 ? "#b73545" : "#e1e4e8"}
                         strokeWidth="12"
                       />
                       <circle
@@ -107,7 +107,7 @@ export function AnalysisView({
                         cy="60"
                         r="45"
                         fill="none"
-                        stroke="#34d399"
+                        stroke="#28734a"
                         strokeWidth="12"
                         pathLength="100"
                         strokeDasharray={`${percentage} ${100 - percentage}`}
@@ -125,11 +125,11 @@ export function AnalysisView({
                     </svg>
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="text-emerald-400">●</span>{" "}
+                        <span className="text-success">●</span>{" "}
                         {job.valid_rows} accepted
                       </p>
                       <p>
-                        <span className="text-red-400">●</span>{" "}
+                        <span className="text-danger">●</span>{" "}
                         {job.invalid_rows} rejected
                       </p>
                       <p className="text-xs text-textMuted">

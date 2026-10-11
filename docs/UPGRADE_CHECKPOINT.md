@@ -1,5 +1,11 @@
 # Upgrade checkpoint
 
+## Test coverage expansion — 2026-10-11
+
+Added 17 backend cases and 8 frontend cases covering malformed preview cleanup, UTF-8 BOM/CRLF and quoted commas, correction row/cell/byte limits, missing original files, empty exports, out-of-range pages, template integrity, upload-size boundaries and full-file checks beyond the preview sample. Frontend cases cover non-CSV selection, template-load failures, duplicate mappings, failed uploads, read-only records, server validation failures and preserving drafts after failed reprocessing.
+
+Verification: **88 backend tests passed**, **21 frontend tests passed**, and the TypeScript/production build passed. These tests are discovered by the existing GitHub Actions commands; no remote CI run is claimed. No application behavior change was needed for these cases.
+
 ## Import workspace phase — 2026-10-09
 
 Implemented the dataset explorer/correction workflow and mapped imports with saved templates.

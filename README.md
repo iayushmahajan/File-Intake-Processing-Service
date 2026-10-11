@@ -225,7 +225,9 @@ cd ..
 backend/.venv/bin/python scripts/verify_async_stack.py
 ```
 
-Tests cover validation, persistence, migrations, retries, duplicate delivery, polling and browser workflows. Test databases and files are isolated from development data. AI calls are mocked or disabled.
+Tests cover validation, persistence, migrations, retries, duplicate delivery, polling and browser workflows. Edge cases include malformed CSVs, upload-size boundaries, correction limits, stale or mismatched templates, empty exports and errors beyond the preview sample. Frontend checks cover failed uploads, unavailable templates, duplicate mappings, read-only records and correction retries that preserve edits.
+
+Test databases and files are isolated from development data. AI calls are mocked or disabled.
 
 GitHub Actions is configured for backend and frontend tests, the production build and the disposable async integration checks. Detailed execution records are kept in the [verification log](docs/UPGRADE_CHECKPOINT.md).
 

@@ -186,7 +186,7 @@ export function ResultsPanel({
                 ].map(([name, value]) => (
                   <div key={name} className="subcard">
                     <p className="text-xs text-textMuted">{name}</p>
-                    <p className="mt-2 font-mono text-2xl font-semibold">
+                    <p className="mt-2 tabular-nums text-3xl font-semibold">
                       {value}
                     </p>
                   </div>
@@ -370,7 +370,7 @@ function AiInsights({ job }: { job: JobDetail }) {
         )}
       </div>
       {error && (
-        <p role="alert" className="mt-3 text-sm text-amber-300">
+        <p role="alert" className="mt-3 text-sm text-warning">
           {error}
         </p>
       )}

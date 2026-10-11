@@ -91,3 +91,146 @@ it("uses identical filters for record search and CSV export", async () => {
   expect(new URL(link).search).toBe(new URL(requested).search);
   expect(new URL(link).searchParams.get("search")).toBe("bob@example.com");
 });
+
+it.each([
+  { ...record, status: "accepted", issues: [], label: "Inspect record 3" },
+  {
+    ...record,
+    issues: [
+      {
+        fields: [],
+        category: "CSV Structure",
+        message: "CSV column count does not match header",
+      },
+    ],
+    label: "Correct record 3",
+  },
+])(
+  "keeps $status records with non-editable structure read-only",
+  async (row) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          records: [row],
+          total: 1,
+          page: 1,
+          page_size: 25,
+          fields: ["email"],
+        }),
+      }),
+    );
+    render(<RecordExplorer job={job} />);
+    fireEvent.click(await screen.findByRole("button", { name: row.label }));
+    expect(screen.getByLabelText("Record 3 email")).toHaveAttribute("readonly");
+    expect(
+      screen.queryByRole("button", { name: "Validate corrections" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("preserves corrected values after a failed reprocessing request", async () => {
+  const onCreated = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith("/corrections"))
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ detail: "Please retry later" }),
+        };
+      return {
+        ok: true,
+        json: async () =>
+          url.endsWith("/validate")
+            ? {
+                valid: true,
+                rows: [{ row_number: 3, issues: [] }],
+                message: "Field checks only",
+              }
+            : {
+                records: [record],
+                total: 1,
+                page: 1,
+                page_size: 25,
+                fields: ["email"],
+              },
+      };
+    }),
+  );
+  render(<RecordExplorer job={job} onCreated={onCreated} />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Correct record 3" }),
+  );
+  fireEvent.change(screen.getByLabelText("Record 3 email"), {
+    target: { value: "fixed@example.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Validate corrections" }));
+  await screen.findByText("Field validation passed.");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Reprocess corrected dataset" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Please retry later",
+  );
+  expect(screen.getByLabelText("Record 3 email")).toHaveValue(
+    "fixed@example.com",
+  );
+  expect(onCreated).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole("button", { name: "Reprocess corrected dataset" }),
+  ).toBeEnabled();
+});
+
+it("blocks reprocessing when server validation still finds an error", async () => {
+  const fetch = vi.fn().mockImplementation(async (url: string) => ({
+    ok: true,
+    json: async () =>
+      url.endsWith("/validate")
+        ? {
+            valid: false,
+            rows: [
+              {
+                row_number: 3,
+                issues: [
+                  {
+                    fields: ["email"],
+                    category: "Email",
+                    message: "Email is still invalid",
+                  },
+                ],
+              },
+            ],
+            message: "Fix the validation errors",
+          }
+        : {
+            records: [record],
+            total: 1,
+            page: 1,
+            page_size: 25,
+            fields: ["email"],
+          },
+  }));
+  vi.stubGlobal("fetch", fetch);
+  render(<RecordExplorer job={job} />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Correct record 3" }),
+  );
+  fireEvent.change(screen.getByLabelText("Record 3 email"), {
+    target: { value: "still-invalid" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Validate corrections" }));
+  await screen.findAllByText("Email is still invalid");
+  expect(screen.getByLabelText("Record 3 email")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(
+    screen.getByRole("button", { name: "Reprocess corrected dataset" }),
+  ).toBeDisabled();
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).endsWith("/corrections")),
+  ).toBe(false);
+});

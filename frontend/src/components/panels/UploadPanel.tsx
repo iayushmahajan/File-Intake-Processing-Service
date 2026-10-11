@@ -289,7 +289,7 @@ export function UploadPanel({
           </p>
         )}
         {message && (
-          <p className="text-sm text-emerald-300" role="status">
+          <p className="text-sm text-success" role="status">
             {message}
           </p>
         )}
@@ -336,7 +336,7 @@ export function UploadPanel({
               </select>
             </label>
             {templateError && (
-              <p className="text-xs text-amber-300">{templateError}</p>
+              <p className="text-xs text-warning">{templateError}</p>
             )}
             <p className="text-xs text-textMuted">
               Confirm each target field. Extra source columns are ignored. Each
@@ -376,7 +376,7 @@ export function UploadPanel({
               ))}
             </div>
             {!complete && (
-              <p className="text-xs text-amber-300">
+              <p className="text-xs text-warning">
                 Map all 12 fields to different columns before previewing.
               </p>
             )}
@@ -542,8 +542,8 @@ export function UploadPanel({
                     <p
                       className={
                         row.issues.length
-                          ? "mt-1 text-amber-300"
-                          : "mt-1 text-emerald-300"
+                          ? "mt-1 text-warning"
+                          : "mt-1 text-success"
                       }
                     >
                       {row.issues.map((i) => i.message).join("; ") ||
@@ -552,7 +552,7 @@ export function UploadPanel({
                   </div>
                 ))}
                 {!preview.rows.length && (
-                  <p className="text-xs text-amber-300">
+                  <p className="text-xs text-warning">
                     No data records. Processing will record a failed job.
                   </p>
                 )}
