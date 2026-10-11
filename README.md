@@ -8,27 +8,21 @@ You can map different column names, save import templates, download cleaned data
 
 The dashboard shows the job status, accepted and rejected counts, quality score and validation results. For corrected datasets, it also shows what changed from the original job.
 
-![Dashboard showing a completed import, quality metrics and a comparison with the original job](docs/images/dashboard.png)
+![Dashboard showing a completed import, quality metrics and a comparison with the original job](docs/images/dashboard-light-workspace.png)
 
 These screenshots show the running app using the included fictional sample data. In this example, correcting one invalid email increases accepted records from 1 to 2 and the quality score from 70 to 100.
 
-<details>
-<summary>Column mapping and validation preview</summary>
+### Column mapping and validation preview
 
 Choose which source column belongs to each field, reuse a saved template and preview validation before processing the file.
 
-![Import form with a saved template, source-column mappings and validation results for two sample records](docs/images/import-preview.png)
+![Import form with a saved template, source-column mappings and validation results for two sample records](docs/images/import-mapping-light.png)
 
-</details>
-
-<details>
-<summary>Record explorer and corrections</summary>
+### Record explorer and corrections
 
 Search and filter records, inspect the errors on a rejected row and edit its values. Reprocessing creates a linked job and keeps the original results.
 
-![Dataset explorer with a rejected record open for editing and its invalid email highlighted](docs/images/record-correction.png)
-
-</details>
+![Dataset explorer with a rejected record open for editing and its invalid email highlighted](docs/images/record-correction-light.png)
 
 ## What it does
 
