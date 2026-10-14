@@ -13,7 +13,7 @@ DB_PATH = BASE_DIR / "file_processing.db"
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
-APP_NAME = "File Intake & Processing Service"
+APP_NAME = "File Intake & Data Quality Platform"
 APP_VERSION = "0.2.0"
 APP_DESCRIPTION = (
     "Backend API for customer CSV upload, validation, transformation, and job tracking."

@@ -1,4 +1,4 @@
-# File Intake & Processing Service
+# File Intake & Data Quality Platform
 
 I built this full-stack app to validate transaction CSV files and make the results easier to review. It separates accepted and rejected records, explains validation errors, and lets you correct rejected values from the dashboard.
 

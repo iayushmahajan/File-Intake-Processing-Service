@@ -32,7 +32,7 @@ export function AppShell() {
           <p className="eyebrow">DATA WORKSPACE</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
             File Intake{" "}
-            <span className="text-textMuted">&amp; Data Quality</span>
+            <span className="text-textMuted">&amp; Data Quality Platform</span>
           </h1>
           <p className="mt-2 text-sm text-textMuted">
             Import, review and refine your transaction data.

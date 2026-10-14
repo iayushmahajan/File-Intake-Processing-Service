@@ -49,4 +49,4 @@ app.add_middleware(
 
 @app.get("/", tags=["root"])
 def root() -> dict[str, str]:
-    return {"message": "File Intake & Processing Service is running"}
+    return {"message": f"{APP_NAME} is running"}
