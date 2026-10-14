@@ -8,7 +8,7 @@ You can map different column names, save import templates, download cleaned data
 
 The dashboard shows the job status, accepted and rejected counts, quality score and validation results. For corrected datasets, it also shows what changed from the original job.
 
-![Dashboard showing a completed import, quality metrics and a comparison with the original job](docs/images/dashboard-light-workspace.png)
+![File Intake & Data Quality Platform dashboard showing a completed import, quality metrics and a comparison with the original job](docs/images/data-quality-platform-dashboard.png)
 
 These screenshots show the running app using the included fictional sample data. In this example, correcting one invalid email increases accepted records from 1 to 2 and the quality score from 70 to 100.
 
